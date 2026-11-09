@@ -26,7 +26,9 @@
 //!   --weights FILE         learned evaluation (from tools/fit_eval.py) for the
 //!                          agents greedyL and mctsL:SIMSxSAMPLES
 //!   --net FILE             neural network (from tools/train.py) for the agents
-//!                          policy (no search) and mctsN:SIMSxSAMPLES
+//!                          policy (no search) and mctsN:SIMSxSAMPLES. To pit two
+//!                          networks against each other, add @FILE to an agent
+//!                          instead, eg mctsN:200x4@net3.json
 //!   --samples FILE         append training data for tools/train.py: every
 //!                          searched decision, with the search's visit counts
 //!                          and who won
@@ -54,18 +56,25 @@ use std::time::Instant;
 struct Setup {
     learned: Option<Arc<Learned>>,
     net: Option<Arc<Net>>,
+    /// Networks named in agent specs (AGENT@FILE).
+    nets: BTreeMap<String, Arc<Net>>,
     noise: f32,
     explore_turns: u32,
     samples: bool,
 }
 
-fn agent(spec: &str, seed: u64, setup: &Setup) -> Box<dyn Agent> {
+fn agent(full_spec: &str, seed: u64, setup: &Setup) -> Box<dyn Agent> {
+    let (spec, net_path) = match full_spec.split_once('@') {
+        Some((spec, path)) => (spec, Some(path)),
+        None => (full_spec, None),
+    };
     let learned = &setup.learned;
-    let net = || {
-        setup
+    let net = || match net_path {
+        Some(path) => setup.nets[path].clone(),
+        None => setup
             .net
             .clone()
-            .unwrap_or_else(|| panic!("{spec} needs --net"))
+            .unwrap_or_else(|| panic!("{spec} needs --net")),
     };
     let learned_eval = || {
         Evaluator::Learned(
@@ -392,6 +401,14 @@ fn main() {
     let setup = Setup {
         learned,
         net: arg("--net").map(|path| Arc::new(Net::load(&path).unwrap_or_else(|e| panic!("{e}")))),
+        nets: specs
+            .iter()
+            .filter_map(|s| s.split_once('@'))
+            .map(|(_, path)| {
+                let net = Net::load(path).unwrap_or_else(|e| panic!("{e}"));
+                (path.to_string(), Arc::new(net))
+            })
+            .collect(),
         noise: arg("--noise").map_or(0.0, |s| s.parse().expect("--noise")),
         explore_turns: arg("--explore-turns").map_or(0, |s| s.parse().expect("--explore-turns")),
         samples: arg("--samples").is_some(),
