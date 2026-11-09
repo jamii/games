@@ -7,3 +7,4 @@ __pycache__/
 /cards/*.log
 /cards-progress.log
 /cards/*.part
+/results/stage2-sweep/*.part
