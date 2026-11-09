@@ -18,14 +18,19 @@ agent=${3:-mcts:400x4}
 out=${4:-cards}
 mkdir -p "$out"
 cargo build --release --bin selfplay 2> /dev/null
+# Each half is kept as .half until both are done, then both appear together.
 for mode in remove give; do
     file="$out/$card-$mode.jsonl"
-    if [ ! -s "$file" ]; then
+    if [ ! -s "$file" ] && [ ! -s "$file.half" ]; then
         if [ "$mode" = remove ]; then flag=(--remove "$card"); else flag=(--give "second:$card"); fi
         ./target/release/selfplay --games "$games" --first-seed 50000 --agents "$agent,$agent" --max-turns 60 \
             --variant "$card-$mode" "${flag[@]}" ${THREADS:+--threads "$THREADS"} ${EXTRA:-} --out "$file.part" 2> "$out/$card-$mode.log"
-        mv "$file.part" "$file"
+        mv "$file.part" "$file.half"
     fi
+done
+for mode in remove give; do
+    file="$out/$card-$mode.jsonl"
+    if [ -s "$file.half" ]; then mv "$file.half" "$file"; fi
 done
 python3 - "$card" "$out/$card-remove.jsonl" "$out/$card-give.jsonl" <<'EOF'
 import json, math, sys

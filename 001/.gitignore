@@ -14,3 +14,4 @@ __pycache__/
 /cards-fixed-flag/*.part
 /cards-fixed-flag-net/*.log
 /cards-fixed-flag-net/*.part
+/cards*/*.half
