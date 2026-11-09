@@ -299,6 +299,7 @@ against the previous network (`results/stage2/`):
 | net8 | 92–8 | 50–50 | +459 |
 | net9 | 96–4 | 62–38 | +544 |
 | net10 | 98–2 | 54–46 | +572 |
+| net11 | 90–10 | 44–56 | +530 |
 <!-- /generations -->
 
 The yardstick saturates (the game has enough luck that even a much stronger
@@ -318,7 +319,7 @@ is 8 generations (capped at the newest 900,000 samples). The next levers are
 more games per generation (4,000+) and more search per move, which is what a
 many-core rented machine buys.
 
-The web app's bot (**Add a bot**) uses `bots/net.json`, currently net9.
+The web app's bot (**Add a bot**) uses `bots/net.json`, currently net10.
 
 ### Where to run it, and what it costs
 
