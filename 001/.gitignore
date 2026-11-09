@@ -1,3 +1,5 @@
 /target
 /tests/screenshots
 __pycache__/
+/results/positions.jsonl
+/results/*.log
