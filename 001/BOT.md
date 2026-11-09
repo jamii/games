@@ -19,6 +19,9 @@ balance problems. The plan has two stages:
   power outright (Trade). With the flag fixed in place and the *Flag* power not
   tradeable, all four drop back in line with other cards. See
   [Cards](#cards) and RULES_DECISIONS.md.
+- **Climb (+20 points in hand) needs a rules decision**: it's strong because
+  we read "buried units don't count at the flag", which the rules text doesn't
+  settle. See RULES_DECISIONS.md, "Not decided yet".
 - **The first player's advantage is small.** With the stronger bot, the current
   rule (second player starts with 1 point) gives 50% (44–57%); with no
   compensation it's 55%. See [First player advantage](#first-player-advantage).
