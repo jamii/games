@@ -1270,3 +1270,35 @@ fn determinize_only_changes_what_is_hidden() {
     let samples: HashSet<Vec<usize>> = (0..10).map(|s| g.determinize(0, s).deck).collect();
     assert!(samples.len() > 1, "different seeds give different samples");
 }
+
+#[test]
+fn given_cards_arrive_after_the_draft_and_match_removed_deals() {
+    let card = power("Phoenix");
+    let removed = Options {
+        seed: Some(5),
+        removed: vec![card],
+        ..Options::default()
+    };
+    let given = Options {
+        seed: Some(5),
+        given_second: vec![card],
+        ..Options::default()
+    };
+    let (mut a, _) = Game::new(removed).unwrap();
+    let (mut b, _) = Game::new(given).unwrap();
+    assert_eq!(a.deck, b.deck, "the same deal either way");
+    assert_eq!(a.faceup, b.faceup);
+    while a.phase == Phase::Draft {
+        let seat = a.current;
+        a.apply(seat, &Action::TakeFaceup { slot: 0 }).unwrap();
+        b.apply(seat, &Action::TakeFaceup { slot: 0 }).unwrap();
+    }
+    let second = 1 - b.first_player;
+    assert_eq!(b.hands[second].len(), a.hands[second].len() + 1);
+    assert!(b.hands[second].contains(&card));
+    assert!(
+        b.known_hand(second).contains(&card),
+        "both players know about it"
+    );
+    assert_eq!(a.hands[1 - second], b.hands[1 - second]);
+}

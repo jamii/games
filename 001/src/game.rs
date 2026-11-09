@@ -167,6 +167,13 @@ pub struct Options {
     /// Cards left out of the deck (for balance experiments).
     #[serde(default)]
     pub removed: Vec<usize>,
+    /// Cards left out of the deck and given to the first or second player when
+    /// the draft ends, in view of both (for balance experiments: compare with
+    /// the same cards in `removed` to measure what a card is worth).
+    #[serde(default)]
+    pub given_first: Vec<usize>,
+    #[serde(default)]
+    pub given_second: Vec<usize>,
 }
 
 fn default_automatic() -> bool {
@@ -194,6 +201,8 @@ impl Default for Options {
             automatic: default_automatic(),
             seed: None,
             removed: Vec::new(),
+            given_first: Vec::new(),
+            given_second: Vec::new(),
         }
     }
 }
@@ -438,7 +447,13 @@ impl Game {
             .first_player
             .unwrap_or_else(|| (next_random(&mut rng) % 2) as Seat);
         let mut deck: Vec<usize> = (0..d.powers.len())
-            .filter(|&p| p != d.flag && p != free && !options.removed.contains(&p))
+            .filter(|&p| {
+                p != d.flag
+                    && p != free
+                    && !options.removed.contains(&p)
+                    && !options.given_first.contains(&p)
+                    && !options.given_second.contains(&p)
+            })
             .collect();
         shuffle(&mut deck, &mut rng);
 
@@ -1093,7 +1108,17 @@ impl Game {
         match self.phase {
             Phase::Draft => {
                 if self.hands.iter().all(|hand| hand.len() >= DRAFT_CARDS) || !self.can_draw() {
-                    self.current = self.first_player;
+                    let first = self.first_player;
+                    for (s, cards) in [
+                        (first, self.options.given_first.clone()),
+                        (1 - first, self.options.given_second.clone()),
+                    ] {
+                        for card in cards {
+                            self.add_to_hand(s, card, true);
+                            log.push(format!("{} is given {}.", SEAT_NAMES[s], power_name(card)));
+                        }
+                    }
+                    self.current = first;
                     self.begin_turn(log);
                 } else if self.hands[1 - seat].len() < DRAFT_CARDS {
                     self.current = 1 - seat;

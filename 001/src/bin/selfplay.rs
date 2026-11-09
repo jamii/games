@@ -14,6 +14,10 @@
 //!   --second-player-points K
 //!   --target-score K
 //!   --remove NAME[,NAME]   leave these cards out of the deck
+//!   --give WHO:NAME[,...]  leave these cards out of the deck and give them to
+//!                          the first or second player (WHO is first or second)
+//!                          when the draft ends. Compare with --remove NAME on
+//!                          the same seeds to measure what a card is worth.
 //!   --variant LABEL        label stored with each game (default: built from the options)
 //!   --out FILE             append results here (default: print to stdout)
 //!   --positions FILE       also append a sample of positions (the start of every
@@ -361,6 +365,15 @@ fn main() {
     if let Some(names) = arg("--remove") {
         options.removed = names.split(',').map(power_index).collect();
     }
+    if let Some(gifts) = arg("--give") {
+        for gift in gifts.split(',') {
+            match gift.split_once(':') {
+                Some(("first", name)) => options.given_first.push(power_index(name)),
+                Some(("second", name)) => options.given_second.push(power_index(name)),
+                _ => panic!("--give expects first:CARD or second:CARD, not {gift}"),
+            }
+        }
+    }
     let variant = arg("--variant").unwrap_or_else(|| {
         let mut v = format!(
             "p2={},target={}",
@@ -368,6 +381,9 @@ fn main() {
         );
         if let Some(r) = arg("--remove") {
             v += &format!(",remove={r}");
+        }
+        if let Some(g) = arg("--give") {
+            v += &format!(",give={g}");
         }
         v
     });
