@@ -149,6 +149,7 @@ where it excludes 0; rebuilt by `tools/card_table.py`):
 | Stubborn | -1.5 ± 6.4 | +16 | -0.38 |
 | Split | -2.5 ± 8.2 | -8 | +0.25 |
 | Bungee | -3.0 ± 7.6 | -13 | -0.21 |
+| Explosive | -4.0 ± 6.7 | +11 | +0.72 |
 <!-- /cards -->
 
 **The correlational measures got Forbid and Trail backwards**, so treat them
