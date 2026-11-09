@@ -74,6 +74,8 @@ def worth(directory):
 
 
 stage1, stage2, fixed = worth("cards"), worth("cards-net"), worth("cards-fixed-flag")
+for card, (m, text) in worth("cards-fixed-flag-net").items():
+    fixed.setdefault(card, (m, f"{text} (stage 2 bot)"))
 rows = []
 for card in set(stage1) | set(stage2) | set(fixed):
     m = max(v[card][0] for v in (stage1, stage2) if card in v) if card in stage1 or card in stage2 else 0

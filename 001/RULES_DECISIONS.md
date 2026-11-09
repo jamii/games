@@ -226,8 +226,8 @@ Tests for most of these are in `src/rules/tests.rs`.
   can move the flag, or only its holder can. Measured with `selfplay --fixed-flag` (no
   power can move it): Swap drops to +7 and Heavy to 0, in line with other cards.
   *Trade* is the same problem by another route (worth +30 to the stronger bot): it can
-  take the *Flag* power itself, making the trader's unit the flag. So the *Flag* power
-  probably shouldn't be tradeable either.
+  take the *Flag* power itself, making the trader's unit the flag. With the *Flag* power
+  not tradeable as well (also part of `--fixed-flag`), Trade drops to +2.
 
 - Rule details from the playtesting notes that aren't in the rules text, like "first player
   doesn't draw on their first turn" and the second player's starting points, are options in
