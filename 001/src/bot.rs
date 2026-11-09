@@ -17,6 +17,12 @@ use crate::rules::hex_dist;
 
 pub const DEFAULT_ACTION_CAP: u32 = 16;
 
+/// Set GAME_DEBUG=1 to log slow searches.
+fn debug() -> bool {
+    static DEBUG: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *DEBUG.get_or_init(|| std::env::var_os("GAME_DEBUG").is_some())
+}
+
 pub trait Agent: Send {
     fn name(&self) -> String;
     fn choose(&mut self, game: &Game, seat: Seat) -> Action;
@@ -386,6 +392,10 @@ pub struct MctsConfig {
     pub temperature: f32,
     pub action_cap: u32,
     pub eval: Evaluator,
+    /// Stop a search early once this many actions have been evaluated per
+    /// simulation on average, so crowded positions (with hundreds of legal
+    /// actions) don't take minutes. Deterministic, unlike a time limit.
+    pub work_per_simulation: u32,
 }
 
 impl Default for MctsConfig {
@@ -398,6 +408,7 @@ impl Default for MctsConfig {
             temperature: 0.0,
             action_cap: DEFAULT_ACTION_CAP,
             eval: Evaluator::default(),
+            work_per_simulation: 40,
         }
     }
 }
@@ -468,7 +479,25 @@ impl MctsAgent {
         }
     }
 
-    fn expand(&self, nodes: &mut [Node], index: usize) {
+    /// Expand a node, returning how many actions it evaluated.
+    fn expand(&self, nodes: &mut [Node], index: usize) -> u64 {
+        let started = std::time::Instant::now();
+        let work = self.expand_inner(nodes, index);
+        if debug() && started.elapsed().as_millis() > 100 {
+            let node = &nodes[index];
+            eprintln!(
+                "slow expansion: {} ms, {} actions, {} units, phase {:?}, prompt {:?}",
+                started.elapsed().as_millis(),
+                work,
+                node.game.units.len(),
+                node.game.phase,
+                node.game.prompt().map(|p| &p.text),
+            );
+        }
+        work
+    }
+
+    fn expand_inner(&self, nodes: &mut [Node], index: usize) -> u64 {
         let node = &mut nodes[index];
         node.expanded = true;
         let actions = bot_actions(&node.game, node.mover, self.config.action_cap);
@@ -494,6 +523,7 @@ impl MctsAgent {
                 total: 0.0,
             })
             .collect();
+        node.edges.len() as u64
     }
 
     fn select(&self, node: &Node) -> usize {
@@ -524,8 +554,12 @@ impl MctsAgent {
     /// root's actions.
     fn search(&self, game: Game, simulations: u32) -> (Vec<Action>, Vec<u32>, Vec<f32>) {
         let mut nodes = vec![Node::new(game, &self.config.eval)];
-        self.expand(&mut nodes, 0);
+        let mut work = self.expand(&mut nodes, 0);
+        let budget = simulations as u64 * self.config.work_per_simulation as u64;
         for _ in 0..simulations {
+            if work > budget {
+                break;
+            }
             let mut path: Vec<(usize, usize)> = Vec::new();
             let mut index = 0;
             let value = loop {
@@ -533,7 +567,7 @@ impl MctsAgent {
                     break t;
                 }
                 if !nodes[index].expanded {
-                    self.expand(&mut nodes, index);
+                    work += self.expand(&mut nodes, index);
                     break nodes[index].value;
                 }
                 let e = self.select(&nodes[index]);

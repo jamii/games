@@ -946,9 +946,23 @@ impl Game {
     /// finished result, or the game as it stands at the action's first prompt.
     /// None if the action is illegal. (For bots judging their options.)
     pub fn after(&self, seat: Seat, action: &Action) -> Option<Game> {
-        if self.pending.is_some() {
-            let mut next = self.clone();
-            return next.apply(seat, action).ok().map(|_| next);
+        if let Some(pending) = &self.pending {
+            // The prompt's options are already known to lead somewhere, so
+            // replay the answer directly instead of checking the next prompt's
+            // options too.
+            let Action::Choose { index } = action else {
+                return None;
+            };
+            if pending.seat != seat {
+                return None;
+            }
+            let mut answers = pending.answers.clone();
+            answers.push(*pending.prompt.answers.get(*index)?);
+            return match run(&pending.base, &pending.action, seat, &answers) {
+                (Ok(()), game, _) => Some(game),
+                (Err(Stop::Need(_, preview)), _, _) => Some(*preview),
+                (Err(Stop::Illegal(_)), _, _) => None,
+            };
         }
         match run(self, action, seat, &[]) {
             (Ok(()), game, _) => Some(game),
@@ -1570,7 +1584,7 @@ impl Game {
         self.sort_units();
         if let Some(owner) = owner {
             if self.unit(id).label.is_empty() {
-                self.unit_mut(id).label = "+".into();
+                self.unit_mut(id).label = "+";
             }
             self.enforce_unit_cap(owner, ctx)?;
         }
@@ -1597,7 +1611,7 @@ impl Game {
         self.kill_units(vec![mine[i]], None, false, ctx)?;
         for id in mine {
             if self.alive(id) && self.unit(id).label == "+" {
-                let label = self.free_label(owner).unwrap_or("+").to_string();
+                let label = self.free_label(owner).unwrap_or("+");
                 self.unit_mut(id).label = label;
             }
         }
@@ -2453,7 +2467,7 @@ impl Game {
                     .filter(|i| mask & (1 << i) == 0)
                     .map(|i| u.powers[i])
                     .collect();
-                self.unit_mut(user).powers = kept;
+                self.unit_mut(user).powers = kept.into();
                 let id = self.create_unit(u.owner, ahead, facing, given, ctx)?;
                 if self.alive(id) {
                     ctx.log(format!(
@@ -2477,10 +2491,10 @@ impl Game {
                         continue;
                     }
                     let before = self.twitchy_snapshot();
-                    let label = self.free_label(owner).unwrap_or("+").to_string();
+                    let label = self.free_label(owner).unwrap_or("+");
                     let unit = self.unit_mut(t);
                     unit.owner = Some(owner);
-                    unit.label = label.clone();
+                    unit.label = label;
                     ctx.log(format!(
                         "A neutral unit became {} unit {label}.",
                         SEAT_NAMES[owner]

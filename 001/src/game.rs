@@ -74,6 +74,8 @@ pub(crate) fn turn_text(from: usize, to: usize) -> Option<&'static str> {
     }
 }
 
+pub type Powers = smallvec::SmallVec<[PowerRef; 4]>;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PowerRef {
     pub power: usize,
@@ -86,11 +88,14 @@ pub struct PowerRef {
 pub struct Unit {
     pub id: u32,
     pub owner: Option<Seat>,
-    pub label: String,
+    /// "A"–"E" or "1"–"5"; "" for neutral units; "+" for a sixth unit until its
+    /// owner decides which unit dies.
+    pub label: &'static str,
     pub cell: Cell,
     /// Index into `DIRS`.
     pub facing: usize,
-    pub powers: Vec<PowerRef>,
+    /// At most `MAX_POWERS`, stored inline so copying a game allocates less.
+    pub powers: Powers,
     pub tokens: u32,
     pub activations: u32,
     /// Stacking order: the unit with the highest `z` in a space is on top.
@@ -124,7 +129,7 @@ impl Unit {
         match self.owner {
             // A sixth unit, until its owner decides which unit dies.
             Some(_) if self.label == "+" => "the new unit".into(),
-            Some(_) => self.label.clone(),
+            Some(_) => self.label.to_string(),
             None if self.is_flag() => "the flag".into(),
             None => "a neutral unit".into(),
         }
@@ -912,16 +917,13 @@ impl Game {
                     return Err(hard("The unit already belongs to them."));
                 }
                 let label = match owner {
-                    Some(o) => self
-                        .free_label(o)
-                        .ok_or_else(|| {
-                            hard(format!(
-                                "{} already has 5 units. Kill one first.",
-                                SEAT_NAMES[o]
-                            ))
-                        })?
-                        .to_string(),
-                    None => String::new(),
+                    Some(o) => self.free_label(o).ok_or_else(|| {
+                        hard(format!(
+                            "{} already has 5 units. Kill one first.",
+                            SEAT_NAMES[o]
+                        ))
+                    })?,
+                    None => "",
                 };
                 let before = cap(self.units[index].name());
                 let u = &mut self.units[index];
@@ -1235,10 +1237,7 @@ impl Game {
         facing: usize,
         powers: Vec<PowerRef>,
     ) -> usize {
-        let label = owner
-            .and_then(|o| self.free_label(o))
-            .unwrap_or("")
-            .to_string();
+        let label = owner.and_then(|o| self.free_label(o)).unwrap_or("");
         let z = self.bump_z();
         self.units.push(Unit {
             id: self.next_id,
@@ -1246,7 +1245,7 @@ impl Game {
             label,
             cell,
             facing,
-            powers,
+            powers: powers.into(),
             tokens: 0,
             activations: 0,
             z,

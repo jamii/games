@@ -1042,7 +1042,7 @@ fn check_invariants(g: &Game) {
     for seat in 0..2 {
         let mine: Vec<&Unit> = g.units.iter().filter(|u| u.owner == Some(seat)).collect();
         assert!(mine.len() <= 5, "too many units");
-        let mut labels: Vec<&str> = mine.iter().map(|u| u.label.as_str()).collect();
+        let mut labels: Vec<&str> = mine.iter().map(|u| u.label).collect();
         labels.sort();
         labels.dedup();
         assert_eq!(labels.len(), mine.len(), "duplicate labels");
