@@ -32,8 +32,20 @@ import torch.nn.functional as F
 # Data
 
 
+class Sample:
+    """One decision, as flat arrays: each kind of token's ids and values
+    concatenated, with the number of features in each token."""
+    __slots__ = ("g_i", "g_v", "u_i", "u_v", "u_n", "a_i", "a_v", "a_n", "au", "at", "pi", "z", "q", "seed")
+
+
+def flatten(tokens):
+    ids = np.array([i for t in tokens for i in t["i"]], dtype=np.int32)
+    vals = np.array([v for t in tokens for v in t["v"]], dtype=np.float32)
+    lengths = np.array([len(t["i"]) for t in tokens], dtype=np.int32)
+    return ids, vals, lengths
+
+
 def load(paths, max_samples=None):
-    """Reads samples into compact numpy arrays (one dict per sample)."""
     samples, layout = [], None
     for path in paths:
         with open(path) as f:
@@ -48,73 +60,74 @@ def load(paths, max_samples=None):
                 visits = np.array(r["visits"], dtype=np.float32)
                 if visits.sum() <= 0 or len(visits) < 2:
                     continue
+                s = Sample()
                 obs = r["obs"]
-                samples.append({
-                    "g": (np.array(obs["g"]["i"], dtype=np.int64), np.array(obs["g"]["v"], dtype=np.float32)),
-                    "u": [(np.array(u["i"], dtype=np.int64), np.array(u["v"], dtype=np.float32)) for u in obs["u"]],
-                    "a": [(np.array(a["t"]["i"], dtype=np.int64), np.array(a["t"]["v"], dtype=np.float32))
-                          for a in r["actions"]],
-                    "au": np.array([a["u"] for a in r["actions"]], dtype=np.int64),
-                    "at": np.array([a["g"] for a in r["actions"]], dtype=np.int64),
-                    "pi": visits / visits.sum(),
-                    "z": float(r["z"]),
-                    "q": float(r.get("q", 0.0)),
-                    "seed": r["seed"],
-                })
-                if max_samples and len(samples) >= max_samples:
-                    return samples, layout
+                s.g_i = np.array(obs["g"]["i"], dtype=np.int32)
+                s.g_v = np.array(obs["g"]["v"], dtype=np.float32)
+                s.u_i, s.u_v, s.u_n = flatten(obs["u"])
+                s.a_i, s.a_v, s.a_n = flatten([a["t"] for a in r["actions"]])
+                s.au = np.array([a["u"] for a in r["actions"]], dtype=np.int64)
+                s.at = np.array([a["g"] for a in r["actions"]], dtype=np.int64)
+                s.pi = visits / visits.sum()
+                s.z = float(r["z"])
+                s.q = float(r.get("q", 0.0))
+                s.seed = r["seed"]
+                samples.append(s)
+                if max_samples and len(samples) > max_samples:
+                    # Keep the newest.
+                    samples = samples[-max_samples:]
     return samples, layout
 
 
-def bag(tokens):
-    """Flattens a list of (ids, vals) tokens for nn.EmbeddingBag."""
-    lengths = [len(i) for i, _ in tokens]
-    offsets = np.zeros(len(tokens), dtype=np.int64)
-    if tokens:
-        offsets[1:] = np.cumsum(lengths)[:-1]
-    ids = np.concatenate([i for i, _ in tokens]) if tokens else np.zeros(0, dtype=np.int64)
-    vals = np.concatenate([v for _, v in tokens]) if tokens else np.zeros(0, dtype=np.float32)
-    return torch.from_numpy(ids), torch.from_numpy(offsets), torch.from_numpy(vals)
+def offsets_of(lengths):
+    out = np.zeros(len(lengths), dtype=np.int64)
+    if len(lengths):
+        out[1:] = np.cumsum(lengths)[:-1]
+    return out
 
 
 def collate(batch, device):
     """Pads a list of samples into tensors."""
     b = len(batch)
-    n_units = max(1, max(len(s["u"]) for s in batch))
-    n_actions = max(len(s["a"]) for s in batch)
-    units, unit_slot, actions, action_slot = [], [], [], []
+    n_units = max(1, max(len(s.u_n) for s in batch))
+    n_actions = max(len(s.a_n) for s in batch)
     au = np.full((b, n_actions), -1, dtype=np.int64)
     at = np.full((b, n_actions), -1, dtype=np.int64)
     pi = np.zeros((b, n_actions), dtype=np.float32)
     amask = np.zeros((b, n_actions), dtype=bool)
     umask = np.zeros((b, n_units), dtype=bool)
+    unit_slot, action_slot = [], []
     for k, s in enumerate(batch):
-        for j, u in enumerate(s["u"]):
-            units.append(u)
-            unit_slot.append(k * n_units + j)
-        umask[k, :len(s["u"])] = True
-        for j, a in enumerate(s["a"]):
-            actions.append(a)
-            action_slot.append(k * n_actions + j)
-        m = len(s["a"])
-        au[k, :m] = s["au"]
-        at[k, :m] = s["at"]
-        pi[k, :m] = s["pi"]
-        amask[k, :m] = True
-    t = lambda x: torch.from_numpy(x).to(device)
+        nu, na = len(s.u_n), len(s.a_n)
+        unit_slot.append(k * n_units + np.arange(nu))
+        action_slot.append(k * n_actions + np.arange(na))
+        umask[k, :nu] = True
+        au[k, :na] = s.au
+        at[k, :na] = s.at
+        pi[k, :na] = s.pi
+        amask[k, :na] = True
+
+    def t(x, dtype=None):
+        x = torch.from_numpy(np.ascontiguousarray(x))
+        return (x.to(dtype) if dtype else x).to(device)
+
+    def bag(ids, vals, lengths):
+        return [t(np.concatenate(ids), torch.int64), t(offsets_of(np.concatenate(lengths))),
+                t(np.concatenate(vals))]
+
     return {
-        "g": [x.to(device) for x in bag([s["g"] for s in batch])],
-        "u": [x.to(device) for x in bag(units)],
-        "u_slot": torch.tensor(unit_slot, dtype=torch.int64, device=device),
+        "g": bag([s.g_i for s in batch], [s.g_v for s in batch], [[len(s.g_i)] for s in batch]),
+        "u": bag([s.u_i for s in batch], [s.u_v for s in batch], [s.u_n for s in batch]),
+        "u_slot": t(np.concatenate(unit_slot)),
         "umask": t(umask),
-        "a": [x.to(device) for x in bag(actions)],
-        "a_slot": torch.tensor(action_slot, dtype=torch.int64, device=device),
+        "a": bag([s.a_i for s in batch], [s.a_v for s in batch], [s.a_n for s in batch]),
+        "a_slot": t(np.concatenate(action_slot)),
         "au": t(au),
         "at": t(at),
         "amask": t(amask),
         "pi": t(pi),
-        "z": torch.tensor([s["z"] for s in batch], dtype=torch.float32, device=device),
-        "q": torch.tensor([s["q"] for s in batch], dtype=torch.float32, device=device),
+        "z": torch.tensor([s.z for s in batch], dtype=torch.float32, device=device),
+        "q": torch.tensor([s.q for s in batch], dtype=torch.float32, device=device),
     }
 
 
@@ -206,16 +219,22 @@ def export(model, path, checks):
 
 def make_checks(model, samples, device):
     """A few positions with this script's outputs, for src/net.rs to verify."""
+    def tokens(ids, vals, lengths):
+        out, at = [], 0
+        for n in lengths:
+            out.append({"i": ids[at:at + n].tolist(), "v": vals[at:at + n].tolist()})
+            at += n
+        return out
+
     checks = []
     model.eval()
     with torch.no_grad():
         for s in samples[:3]:
             v, logits = model(collate([s], device))
             checks.append({
-                "obs": {"g": {"i": s["g"][0].tolist(), "v": s["g"][1].tolist()},
-                        "u": [{"i": i.tolist(), "v": vv.tolist()} for i, vv in s["u"]]},
-                "actions": [{"t": {"i": i.tolist(), "v": vv.tolist()}, "u": int(u), "g": int(g)}
-                            for (i, vv), u, g in zip(s["a"], s["au"], s["at"])],
+                "obs": {"g": {"i": s.g_i.tolist(), "v": s.g_v.tolist()}, "u": tokens(s.u_i, s.u_v, s.u_n)},
+                "actions": [{"t": t, "u": int(u), "g": int(g)}
+                            for t, u, g in zip(tokens(s.a_i, s.a_v, s.a_n), s.au, s.at)],
                 "value": float(v[0]),
                 "logits": [float(l) for l in logits[0]],
             })
@@ -290,8 +309,8 @@ def main():
     if not samples:
         sys.exit("no samples")
     # Hold out every tenth game, so the held-out positions are from unseen games.
-    held = [s for s in samples if s["seed"] % 10 == 0]
-    train = [s for s in samples if s["seed"] % 10 != 0]
+    held = [s for s in samples if s.seed % 10 == 0]
+    train = [s for s in samples if s.seed % 10 != 0]
     print(f"{len(samples)} samples ({len(train)} for training, {len(held)} held out), "
           f"read in {time.time() - t0:.0f}s; layout {layout}")
 
