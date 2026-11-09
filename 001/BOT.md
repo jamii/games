@@ -211,7 +211,14 @@ Pull also moves the flag, less often.
 **The correlational measures are unreliable**: they rated Forbid and Bully
 weak (both are among the strongest cards in hand), and Trail and Explosive
 strong (neither measurably helps). Treat them as pointers at most and use the
-causal test for decisions. Running it for all
+causal test for decisions.
+
+**The trained bot's draft choices are a better cheap signal.**
+`tools/draft_values.py` fits how strongly the bot prefers each card when it
+drafts (`results/stage2/draft-gen*.txt`); it comes free with self-play. By
+generation 5 its top three picks were Heavy, Swap and Trade, the three
+flag-takers, and its last was Burrow; measured causally with the same bot,
+those are worth +19, +12, +30 and −3. Use it to choose which cards to test. Running it for all
 64 cards is about 25,000 games: a couple of hours on a rented 32-thread
 machine, a few dollars. Doing it with the stage 2 bot
 (`tools/card_value.sh CARD 200 mctsN:200x4@bots/net.json`) would measure the
