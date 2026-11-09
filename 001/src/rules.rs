@@ -86,6 +86,17 @@ pub struct Pending {
     pub preview: Box<Game>,
 }
 
+impl Pending {
+    /// The action waiting for answers.
+    pub fn action(&self) -> &Action {
+        &self.action
+    }
+    /// The answers given so far.
+    pub fn answers(&self) -> &[usize] {
+        &self.answers
+    }
+}
+
 enum Stop {
     /// The action needs another answer.
     Need(Prompt, Box<Game>),

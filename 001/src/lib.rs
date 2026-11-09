@@ -6,5 +6,7 @@
 
 pub mod bot;
 pub mod data;
+pub mod encode;
 pub mod game;
+pub mod net;
 pub mod rules;

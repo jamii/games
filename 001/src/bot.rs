@@ -13,6 +13,7 @@
 
 use crate::data::{Effect, Seat};
 use crate::game::{Action, Game, Phase};
+use crate::net::Net;
 use crate::rules::hex_dist;
 
 pub const DEFAULT_ACTION_CAP: u32 = 16;
@@ -26,6 +27,10 @@ fn debug() -> bool {
 pub trait Agent: Send {
     fn name(&self) -> String;
     fn choose(&mut self, game: &Game, seat: Seat) -> Action;
+    /// What the last `choose` searched, if it searched (for training data).
+    fn last_search(&self) -> Option<&SearchResult> {
+        None
+    }
 }
 
 /// Who has to act now: the player answering a prompt, or the current player.
@@ -287,6 +292,8 @@ impl Learned {
 pub enum Evaluator {
     Hand(Weights),
     Learned(std::sync::Arc<Learned>),
+    /// A neural network (stage 2). In search it also gives the move priors.
+    Net(std::sync::Arc<Net>),
 }
 
 impl Default for Evaluator {
@@ -300,7 +307,53 @@ impl Evaluator {
         match self {
             Evaluator::Hand(w) => evaluate_with(game, seat, w),
             Evaluator::Learned(l) => l.evaluate(game, seat),
+            Evaluator::Net(net) => {
+                if let Phase::Over { winner } = game.phase {
+                    return if winner == seat { 1.0 } else { -1.0 };
+                }
+                let mover = to_move(game);
+                let (value, _) = net_eval(net, game, mover, DEFAULT_ACTION_CAP);
+                if mover == seat { value } else { -value }
+            }
         }
+    }
+}
+
+/// The network's value (for `mover`, who must be the player to move) and
+/// the legal actions with their priors.
+pub fn net_eval(net: &Net, game: &Game, mover: Seat, cap: u32) -> (f32, Vec<(Action, f32)>) {
+    let actions = bot_actions(game, mover, cap);
+    let obs = crate::encode::observe(game, mover);
+    let encoded = crate::encode::encode_actions(game, mover, &obs, &actions);
+    let out = net.forward(&obs, &encoded);
+    let max = out.logits.iter().copied().fold(f32::MIN, f32::max);
+    let weights: Vec<f32> = out.logits.iter().map(|l| (l - max).exp()).collect();
+    let sum: f32 = weights.iter().sum();
+    let priors = actions
+        .into_iter()
+        .zip(weights)
+        .map(|(a, w)| (a, w / sum))
+        .collect();
+    (out.value, priors)
+}
+
+/// Plays the network's favourite action, without searching.
+pub struct PolicyAgent {
+    pub net: std::sync::Arc<Net>,
+    pub action_cap: u32,
+}
+
+impl Agent for PolicyAgent {
+    fn name(&self) -> String {
+        "policy".into()
+    }
+    fn choose(&mut self, game: &Game, seat: Seat) -> Action {
+        let (_, priors) = net_eval(&self.net, game, seat, self.action_cap);
+        priors
+            .into_iter()
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(a, _)| a)
+            .unwrap_or(Action::EndTurn { score: false })
     }
 }
 
@@ -396,6 +449,12 @@ pub struct MctsConfig {
     /// simulation on average, so crowded positions (with hundreds of legal
     /// actions) don't take minutes. Deterministic, unlike a time limit.
     pub work_per_simulation: u32,
+    /// Mix this much Dirichlet noise into the root's priors (0 for none), so
+    /// self-play for training explores. AlphaZero used 0.25.
+    pub root_noise: f32,
+    /// Play by `temperature` only up to this turn, and pick the most visited
+    /// action after it.
+    pub temperature_turns: u32,
 }
 
 impl Default for MctsConfig {
@@ -409,6 +468,8 @@ impl Default for MctsConfig {
             action_cap: DEFAULT_ACTION_CAP,
             eval: Evaluator::default(),
             work_per_simulation: 40,
+            root_noise: 0.0,
+            temperature_turns: u32::MAX,
         }
     }
 }
@@ -435,12 +496,36 @@ struct Edge {
 }
 
 impl Node {
-    fn new(game: Game, eval: &Evaluator) -> Node {
+    fn new(game: Game, eval: &Evaluator, cap: u32) -> Node {
         let mover = to_move(&game);
         let terminal = match game.phase {
             Phase::Over { winner } => Some(if winner == 0 { 1.0 } else { -1.0 }),
             _ => None,
         };
+        if let (Evaluator::Net(net), None) = (eval, terminal) {
+            // One network call gives the value and the priors, so the node is
+            // expanded straight away (as in AlphaZero).
+            let (value, priors) = net_eval(net, &game, mover, cap);
+            let edges = priors
+                .into_iter()
+                .map(|(action, prior)| Edge {
+                    action,
+                    prior,
+                    child: None,
+                    visits: 0,
+                    total: 0.0,
+                })
+                .collect();
+            return Node {
+                game,
+                mover,
+                terminal,
+                expanded: true,
+                visits: 0,
+                value: if mover == 0 { value } else { -value },
+                edges,
+            };
+        }
         let value = terminal.unwrap_or_else(|| eval.evaluate(&game, 0));
         Node {
             game,
@@ -552,9 +637,27 @@ impl MctsAgent {
 
     /// Search one sample of the game, returning visits and values for the
     /// root's actions.
-    fn search(&self, game: Game, simulations: u32) -> (Vec<Action>, Vec<u32>, Vec<f32>) {
-        let mut nodes = vec![Node::new(game, &self.config.eval)];
-        let mut work = self.expand(&mut nodes, 0);
+    fn search(
+        &self,
+        game: Game,
+        simulations: u32,
+        noise_seed: u64,
+    ) -> (Vec<Action>, Vec<u32>, Vec<f32>) {
+        let cap = self.config.action_cap;
+        let mut nodes = vec![Node::new(game, &self.config.eval, cap)];
+        let mut work = if nodes[0].expanded {
+            nodes[0].edges.len() as u64
+        } else {
+            self.expand(&mut nodes, 0)
+        };
+        if self.config.root_noise > 0.0 && nodes[0].edges.len() > 1 {
+            let mut rng = Rng::new(noise_seed);
+            let noise = dirichlet(&mut rng, 0.3, nodes[0].edges.len());
+            let eps = self.config.root_noise;
+            for (e, n) in nodes[0].edges.iter_mut().zip(noise) {
+                e.prior = (1.0 - eps) * e.prior + eps * n;
+            }
+        }
         let budget = simulations as u64 * self.config.work_per_simulation as u64;
         for _ in 0..simulations {
             if work > budget {
@@ -583,8 +686,11 @@ impl MctsAgent {
                             break if mover == 0 { -1.0 } else { 1.0 };
                         }
                         let child = nodes.len();
-                        nodes.push(Node::new(next, &self.config.eval));
+                        nodes.push(Node::new(next, &self.config.eval, cap));
                         nodes[index].edges[e].child = Some(child);
+                        if let Evaluator::Net(_) = self.config.eval {
+                            work += nodes[child].edges.len() as u64;
+                        }
                         break nodes[child].terminal.unwrap_or(nodes[child].value);
                     }
                 }
@@ -617,10 +723,10 @@ impl MctsAgent {
 
 impl Agent for MctsAgent {
     fn name(&self) -> String {
-        let learned = if matches!(self.config.eval, Evaluator::Learned(_)) {
-            "L"
-        } else {
-            ""
+        let learned = match self.config.eval {
+            Evaluator::Hand(_) => "",
+            Evaluator::Learned(_) => "L",
+            Evaluator::Net(_) => "N",
         };
         format!(
             "mcts{learned}:{}x{}",
@@ -640,7 +746,13 @@ impl Agent for MctsAgent {
         let mut totals = vec![0f32; actions.len()];
         for _ in 0..samples {
             let sample = game.determinize(seat, self.rng.next_u64());
-            let (found, v, q) = self.search(sample, per_sample);
+            // Only draw when needed, so searches without noise are unchanged.
+            let noise_seed = if self.config.root_noise > 0.0 {
+                self.rng.next_u64()
+            } else {
+                0
+            };
+            let (found, v, q) = self.search(sample, per_sample, noise_seed);
             for (i, action) in found.iter().enumerate() {
                 if let Some(j) = actions.iter().position(|a| a == action) {
                     visits[j] += v[i];
@@ -659,7 +771,7 @@ impl Agent for MctsAgent {
                 }
             })
             .collect();
-        let pick = if self.config.temperature <= 0.0 {
+        let pick = if self.config.temperature <= 0.0 || game.turn > self.config.temperature_turns {
             (0..actions.len())
                 .max_by_key(|&i| (visits[i], (values[i].max(-9.0) * 1e4) as i64))
                 .unwrap_or(0)
@@ -686,6 +798,40 @@ impl Agent for MctsAgent {
             values,
         });
         actions[pick].clone()
+    }
+
+    fn last_search(&self) -> Option<&SearchResult> {
+        self.last.as_ref()
+    }
+}
+
+/// A sample from a symmetric Dirichlet distribution.
+fn dirichlet(rng: &mut Rng, alpha: f32, n: usize) -> Vec<f32> {
+    let xs: Vec<f32> = (0..n).map(|_| gamma(rng, alpha)).collect();
+    let sum: f32 = xs.iter().sum::<f32>().max(1e-12);
+    xs.into_iter().map(|x| x / sum).collect()
+}
+
+/// Marsaglia and Tsang's method, with the usual boost for shape < 1.
+fn gamma(rng: &mut Rng, shape: f32) -> f32 {
+    if shape < 1.0 {
+        let u = rng.unit().max(1e-12);
+        return gamma(rng, shape + 1.0) * u.powf(1.0 / shape);
+    }
+    let d = shape - 1.0 / 3.0;
+    let c = 1.0 / (9.0 * d).sqrt();
+    loop {
+        // A standard normal by Box-Muller.
+        let (u1, u2) = (rng.unit().max(1e-12), rng.unit());
+        let x = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f32::consts::PI * u2).cos();
+        let v = (1.0 + c * x).powi(3);
+        if v <= 0.0 {
+            continue;
+        }
+        let u = rng.unit().max(1e-12);
+        if u.ln() < 0.5 * x * x + d - d * v + d * v.ln() {
+            return d * v;
+        }
     }
 }
 

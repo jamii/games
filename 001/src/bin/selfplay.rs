@@ -21,12 +21,23 @@
 //!                          for tools/fit_eval.py
 //!   --weights FILE         learned evaluation (from tools/fit_eval.py) for the
 //!                          agents greedyL and mctsL:SIMSxSAMPLES
+//!   --net FILE             neural network (from tools/train.py) for the agents
+//!                          policy (no search) and mctsN:SIMSxSAMPLES
+//!   --samples FILE         append training data for tools/train.py: every
+//!                          searched decision, with the search's visit counts
+//!                          and who won
+//!   --noise E              mix E of Dirichlet noise into the root priors (eg 0.25)
+//!   --explore-turns T      for the first T turns, pick actions in proportion to
+//!                          their visits instead of the most visited (default 0)
 
 use game_001::bot::{
-    Agent, Evaluator, GreedyAgent, Learned, MctsAgent, MctsConfig, RandomAgent, features, to_move,
+    Agent, Evaluator, GreedyAgent, Learned, MctsAgent, MctsConfig, PolicyAgent, RandomAgent,
+    features, to_move,
 };
 use game_001::data::data;
+use game_001::encode::{encode_actions, observe};
 use game_001::game::{Action, Game, Options, Phase};
+use game_001::net::Net;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -35,7 +46,23 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::time::Instant;
 
-fn agent(spec: &str, seed: u64, learned: &Option<Arc<Learned>>) -> Box<dyn Agent> {
+/// Settings shared by all games.
+struct Setup {
+    learned: Option<Arc<Learned>>,
+    net: Option<Arc<Net>>,
+    noise: f32,
+    explore_turns: u32,
+    samples: bool,
+}
+
+fn agent(spec: &str, seed: u64, setup: &Setup) -> Box<dyn Agent> {
+    let learned = &setup.learned;
+    let net = || {
+        setup
+            .net
+            .clone()
+            .unwrap_or_else(|| panic!("{spec} needs --net"))
+    };
     let learned_eval = || {
         Evaluator::Learned(
             learned
@@ -46,23 +73,32 @@ fn agent(spec: &str, seed: u64, learned: &Option<Arc<Learned>>) -> Box<dyn Agent
     match spec {
         "random" => Box::new(RandomAgent::new(seed)),
         "greedy" => Box::new(GreedyAgent::new(seed)),
+        "policy" => Box::new(PolicyAgent {
+            net: net(),
+            action_cap: game_001::bot::DEFAULT_ACTION_CAP,
+        }),
         "greedyL" => {
             let mut a = GreedyAgent::new(seed);
             a.eval = learned_eval();
             Box::new(a)
         }
         _ => {
-            let (rest, use_learned) = match spec.strip_prefix("mctsL") {
-                Some(rest) => (rest, true),
-                None => (
-                    spec.strip_prefix("mcts")
-                        .unwrap_or_else(|| panic!("unknown agent {spec}")),
-                    false,
-                ),
-            };
             let mut config = MctsConfig::default();
-            if use_learned {
+            let rest = if let Some(rest) = spec.strip_prefix("mctsL") {
                 config.eval = learned_eval();
+                rest
+            } else if let Some(rest) = spec.strip_prefix("mctsN") {
+                config.eval = Evaluator::Net(net());
+                // The network's priors are already a distribution over actions.
+                rest
+            } else {
+                spec.strip_prefix("mcts")
+                    .unwrap_or_else(|| panic!("unknown agent {spec}"))
+            };
+            config.root_noise = setup.noise;
+            if setup.explore_turns > 0 {
+                config.temperature = 1.0;
+                config.temperature_turns = setup.explore_turns;
             }
             if let Some(numbers) = rest.strip_prefix(':') {
                 let (sims, samples) = numbers.split_once('x').unwrap_or((numbers, "4"));
@@ -109,17 +145,20 @@ fn owned(game: &Game) -> [u32; 2] {
     n
 }
 
-/// Play one game, recording what each player did.
 /// A position from one player's point of view, and the turn it's from.
 type Sample = (usize, u32, Vec<f32>);
 
+/// A searched decision, for training a network: (seat, encoded decision).
+type Decision = (usize, Value);
+
+/// Play one game, recording what each player did.
 fn play(
     seed: u64,
     options: &Options,
     specs: &[String; 2],
     max_turns: u32,
-    learned: &Option<Arc<Learned>>,
-) -> (Value, Vec<Sample>) {
+    setup: &Setup,
+) -> (Value, Vec<Sample>, Vec<Decision>) {
     let (mut game, _) = Game::new(Options {
         seed: Some(seed),
         ..options.clone()
@@ -130,11 +169,12 @@ fn play(
     let swap = specs[0] != specs[1] && seed % 2 == 1;
     let seat_spec = |seat: usize| specs[if swap { 1 - seat } else { seat }].clone();
     let mut agents: [Box<dyn Agent>; 2] = [
-        agent(&seat_spec(0), seed * 2 + 11, learned),
-        agent(&seat_spec(1), seed * 2 + 12, learned),
+        agent(&seat_spec(0), seed * 2 + 11, setup),
+        agent(&seat_spec(1), seed * 2 + 12, setup),
     ];
     let mut stats = Stats::default();
     let mut samples: Vec<Sample> = Vec::new();
+    let mut decisions: Vec<Decision> = Vec::new();
     let started = Instant::now();
     while !matches!(game.phase, Phase::Over { .. }) && game.turn <= max_turns {
         let seat = to_move(&game);
@@ -165,6 +205,34 @@ fn play(
             );
         }
         stats.decisions[seat] += 1;
+        if setup.samples
+            && let Some(search) = agents[seat].last_search()
+        {
+            let obs = observe(&game, seat);
+            let encoded = encode_actions(&game, seat, &obs, &search.actions);
+            let total: u32 = search.visits.iter().sum();
+            let q: f32 = search
+                .visits
+                .iter()
+                .zip(&search.values)
+                .filter(|(v, _)| **v > 0)
+                .map(|(v, q)| *v as f32 * q)
+                .sum::<f32>()
+                / total.max(1) as f32;
+            decisions.push((
+                seat,
+                json!({
+                    "seed": seed,
+                    "turn": game.turn,
+                    "seat": seat,
+                    "obs": obs,
+                    "actions": encoded,
+                    "visits": search.visits,
+                    "q": q,
+                    "layout": game_001::encode::layout(),
+                }),
+            ));
+        }
         match &action {
             Action::TakeFaceup { slot } => {
                 let card = game.faceup[*slot];
@@ -252,7 +320,15 @@ fn play(
         "final_units": final_units,
         "final_hands": [names(&game.hands[0]), names(&game.hands[1])],
     });
-    (record, samples)
+    let z = |seat: usize| match winner {
+        Some(w) if w == seat => 1.0,
+        Some(_) => -1.0,
+        None => 0.0,
+    };
+    for (seat, d) in decisions.iter_mut() {
+        d["z"] = json!(z(*seat));
+    }
+    (record, samples, decisions)
 }
 
 fn main() {
@@ -297,6 +373,22 @@ fn main() {
     });
     let learned = arg("--weights")
         .map(|path| Arc::new(Learned::load(&path).unwrap_or_else(|e| panic!("{e}"))));
+    let setup = Setup {
+        learned,
+        net: arg("--net").map(|path| Arc::new(Net::load(&path).unwrap_or_else(|e| panic!("{e}")))),
+        noise: arg("--noise").map_or(0.0, |s| s.parse().expect("--noise")),
+        explore_turns: arg("--explore-turns").map_or(0, |s| s.parse().expect("--explore-turns")),
+        samples: arg("--samples").is_some(),
+    };
+    let mut sample_file = arg("--samples").map(|path| {
+        std::io::BufWriter::new(
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .expect("--samples"),
+        )
+    });
     let mut positions = arg("--positions").map(|path| {
         std::io::BufWriter::new(
             std::fs::OpenOptions::new()
@@ -322,27 +414,33 @@ fn main() {
         specs[0], specs[1]
     );
     let next = AtomicU64::new(first);
-    let (tx, rx) = mpsc::channel::<(Value, Vec<Sample>)>();
+    let (tx, rx) = mpsc::channel::<(Value, Vec<Sample>, Vec<Decision>)>();
     let started = Instant::now();
     std::thread::scope(|scope| {
         for _ in 0..threads {
-            let (tx, next, options, specs, learned) =
-                (tx.clone(), &next, &options, &specs, &learned);
+            let (tx, next, options, specs, setup) = (tx.clone(), &next, &options, &specs, &setup);
             scope.spawn(move || {
                 loop {
                     let seed = next.fetch_add(1, Ordering::SeqCst);
                     if seed >= first + games {
                         break;
                     }
-                    let _ = tx.send(play(seed, options, specs, max_turns, learned));
+                    let _ = tx.send(play(seed, options, specs, max_turns, setup));
                 }
             });
         }
         drop(tx);
         let mut done = 0;
         let mut wins: BTreeMap<String, u32> = BTreeMap::new();
-        for (mut record, samples) in rx {
+        for (mut record, samples, decisions) in rx {
             record["variant"] = json!(variant);
+            if let Some(w) = sample_file.as_mut() {
+                for (_, mut d) in decisions {
+                    d["variant"] = json!(variant);
+                    writeln!(w, "{d}").expect("write samples");
+                }
+                w.flush().expect("flush samples");
+            }
             if let (Some(w), Some(winner)) = (positions.as_mut(), record["winner"].as_u64()) {
                 for (seat, turn, f) in samples {
                     let line = json!({ "x": f, "y": (seat as u64 == winner) as u8, "turn": turn, "variant": variant });
