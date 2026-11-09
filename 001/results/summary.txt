@@ -1,0 +1,96 @@
+Variants
+
+variant  games  unfinished  first player wins (95% CI)  turns  time/game  wins          
+-------  -----  ----------  --------------------------  -----  ---------  --------------
+p2-0     600    1           59% (55%–63%)               12.6   9s         mcts:400x4 599
+p2-1     600    4           54% (50%–58%)               12.6   5s         mcts:400x4 596
+p2-2     600    1           49% (45%–53%)               10.8   6s         mcts:400x4 599
+
+Paired seeds (same deals) per variant: p2-0: 600, p2-1: 600, p2-2: 600
+
+Cards applied in at least 30 games (1794 finished games). Lift is the win rate of players who applied the card above what seat order predicts, in percentage points; relative lift subtracts the average over all cards (+4). ± is a 95% interval.
+
+card         drafted  avg pick  taken faceup  applied  win rate  lift  relative lift  times used
+-----------  -------  --------  ------------  -------  --------  ----  -------------  ----------
+Strong       183      1.95      677           656      77%       +28   +24 ± 4        0         
+Remote       176      1.86      624           518      73%       +23   +19 ± 4        0         
+Bridge       219      2.11      634           569      71%       +22   +18 ± 4        0         
+Trail        164      2.20      621           426      70%       +20   +17 ± 5        0         
+Jammer       200      2.02      610           455      70%       +20   +17 ± 5        0         
+Stubborn     251      2.12      596           481      70%       +19   +16 ± 4        0         
+Pacifist     171      1.86      566           410      68%       +18   +15 ± 5        0         
+Twitchy      165      2.00      628           413      69%       +19   +15 ± 5        0         
+Heavy        183      2.18      705           791      69%       +19   +15 ± 3        0         
+Phoenix      188      2.13      631           412      70%       +19   +15 ± 5        0         
+Recycle      189      1.98      647           453      67%       +17   +13 ± 5        0         
+Vacuum       150      1.90      608           405      65%       +16   +12 ± 5        0         
+Friendly     123      2.07      590           405      66%       +16   +12 ± 5        0         
+Weak         156      1.96      631           558      66%       +16   +12 ± 4        0         
+Lifeguard    159      2.04      624           413      66%       +16   +12 ± 5        0         
+Grip         174      2.10      607           420      66%       +16   +12 ± 5        0         
+Explosive    164      1.97      625           500      66%       +15   +11 ± 4        0         
+Spiky        185      2.10      601           454      64%       +15   +11 ± 5        0         
+Telepath     170      2.04      642           513      64%       +14   +10 ± 4        0         
+Six-shooter  170      1.78      606           505      63%       +13   +9 ± 4         0         
+Spotlight    186      1.89      645           561      59%       +9    +5 ± 4         0         
+Stalker      132      1.86      608           474      58%       +8    +4 ± 4         0         
+Swap         207      1.94      861           1034     57%       +7    +3 ± 3         999       
+Vengeance    194      1.90      588           467      57%       +7    +3 ± 5         0         
+Liability    162      2.07      581           496      55%       +5    +1 ± 4         0         
+Reach        159      2.04      665           653      54%       +4    +1 ± 4         0         
+Fast         175      2.29      582           572      55%       +5    +1 ± 4         0         
+Lift         159      1.94      667           766      54%       +4    +0 ± 4         391       
+Pull         199      2.08      853           1014     54%       +4    +0 ± 3         653       
+Colorblind   176      1.84      653           620      54%       +4    -0 ± 4         0         
+Chain        210      2.23      607           601      54%       +4    -0 ± 4         0         
+Halo         185      1.99      618           587      54%       +4    +0 ± 4         0         
+Trade        170      1.99      668           771      53%       +3    -1 ± 4         297       
+Push         132      2.09      886           1012     53%       +3    -1 ± 3         1188      
+Bully        176      1.92      607           519      53%       +2    -1 ± 4         0         
+Leader       146      1.82      622           603      52%       +2    -2 ± 4         0         
+Climb        204      1.91      743           940      52%       +2    -2 ± 3         816       
+Beam         170      1.89      640           589      51%       +1    -3 ± 4         0         
+Trigger      180      2.02      693           813      51%       +1    -3 ± 3         212       
+Stinky       132      2.07      661           599      50%       +0    -4 ± 4         0         
+Mystery      189      2.05      687           792      49%       -1    -5 ± 3         248       
+Spin         178      2.17      629           597      49%       -1    -5 ± 4         0         
+Convert      180      2.08      692           791      49%       -1    -5 ± 3         325       
+Backstab     195      1.95      689           790      49%       -1    -5 ± 3         33        
+Click Click  169      1.82      677           788      49%       -1    -5 ± 3         704       
+Catapult     158      1.85      763           888      48%       -1    -5 ± 3         563       
+Banish       171      2.05      687           790      48%       -2    -6 ± 3         236       
+Stun         153      1.80      721           809      47%       -3    -7 ± 3         365       
+Circle       162      2.06      785           922      47%       -3    -7 ± 3         614       
+Dogpile      140      2.09      667           735      47%       -3    -7 ± 4         225       
+Jump         123      2.12      839           948      47%       -3    -7 ± 3         834       
+Forbid       164      1.98      666           762      46%       -4    -8 ± 4         672       
+Run          173      2.00      863           1023     47%       -4    -8 ± 3         1269      
+Recall       177      2.14      707           800      47%       -4    -8 ± 3         5         
+Split        147      2.00      635           712      46%       -4    -8 ± 4         2874      
+Nuke         182      1.86      707           794      46%       -4    -8 ± 3         180       
+Possess      184      1.97      703           818      46%       -4    -8 ± 3         25        
+Mine         209      2.04      660           797      45%       -6    -9 ± 3         236       
+Neutralize   177      2.02      674           792      45%       -5    -9 ± 3         99        
+Burrow       177      1.83      828           976      43%       -7    -11 ± 3        860       
+Rush         192      1.81      848           1000     43%       -8    -12 ± 3        895       
+Bungee       170      2.08      857           1013     40%       -10   -13 ± 3        506       
+
+Most used powers (activations per finished game)
+
+power        per game
+-----------  --------
+Walk         7.37    
+Split        1.60    
+Run          0.71    
+Push         0.66    
+Swap         0.56    
+Rush         0.50    
+Burrow       0.48    
+Jump         0.46    
+Climb        0.45    
+Click Click  0.39    
+Forbid       0.37    
+Pull         0.36    
+Circle       0.34    
+Catapult     0.31    
+Bungee       0.28    
