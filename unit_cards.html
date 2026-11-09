@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Unit cards</title>
+  <style>
+    @page {
+      size: Letter portrait;
+      margin: 0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #eee;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #111;
+    }
+
+    .page {
+      width: 215.9mm;
+      height: 279.4mm;
+      padding: 5mm;
+      margin: 0 auto;
+      background: white;
+      display: grid;
+      grid-template-columns: repeat(5, 33.800mm);
+      grid-auto-rows: 29.272mm;
+      gap: 2mm;
+      justify-content: center;
+      align-content: center;
+      break-after: page;
+      page-break-after: always;
+    }
+
+    .page:last-child {
+      break-after: auto;
+      page-break-after: auto;
+    }
+
+    .unit {
+      width: 33.800mm;
+      height: 29.272mm;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .cut-line {
+      stroke: #111;
+      stroke-width: 0.22;
+    }
+
+    .cut-line.blank {
+      fill: white;
+    }
+
+    .cut-line.letters {
+      fill: #fdeaea;
+    }
+
+    .cut-line.numbers {
+      fill: #e9eefa;
+    }
+
+    .arrow {
+      fill: none;
+      stroke: #111;
+      stroke-width: 0.9;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .unit-label {
+      font-size: 11.492px;
+      font-weight: 800;
+      font-family: Arial, Helvetica, sans-serif;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      fill: #111;
+    }
+
+    @media screen {
+      .page {
+        margin: 8mm auto;
+        box-shadow: 0 0 8mm rgba(0, 0, 0, 0.25);
+      }
+    }
+
+    @media print {
+      body {
+        background: white;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="page">
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line letters" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">A</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line letters" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">B</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line letters" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">C</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line letters" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">D</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line letters" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">E</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line numbers" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">1</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line numbers" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">2</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line numbers" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">3</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line numbers" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">4</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line numbers" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">5</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line blank" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line blank" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line blank" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line blank" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line blank" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          
+        </svg>
+      </div>
+  </section>
+</body>
+</html>

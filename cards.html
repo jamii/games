@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Power and unit cards</title>
+  <style>
+    @page {
+      size: Letter portrait;
+      margin: 0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #eee;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #111;
+    }
+
+    .page {
+      width: 215.9mm;
+      height: 279.4mm;
+      padding: 5mm;
+      margin: 0 auto;
+      background: white;
+      display: grid;
+      grid-template-columns: repeat(3, 63.5mm);
+      grid-auto-rows: 88.9mm;
+      gap: 1.0mm;
+      justify-content: center;
+      align-content: center;
+      break-after: page;
+      page-break-after: always;
+    }
+
+    .page:last-child {
+      break-after: auto;
+      page-break-after: auto;
+    }
+
+    .card {
+      width: 63.5mm;
+      height: 88.9mm;
+      border: 0.25mm solid #111;
+      border-radius: 3mm;
+      padding: 6mm 5mm;
+      display: flex;
+      flex-direction: column;
+      background: white;
+      overflow: hidden;
+    }
+
+    .card-name {
+      text-align: center;
+      font-size: 16pt;
+      font-weight: 800;
+      line-height: 1;
+      padding-bottom: 4mm;
+      border-bottom: 0.2mm solid #999;
+    }
+
+    .card-text {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 10pt;
+      line-height: 1.2;
+      overflow: hidden;
+      hyphens: auto;
+    }
+
+    .card-text strong {
+      font-size: 11pt;
+    }
+
+    .mixed-page {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12mm;
+    }
+
+    .mixed-card-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 63.5mm);
+      grid-auto-rows: 88.9mm;
+      gap: 1.0mm;
+      justify-content: center;
+    }
+
+    .unit-page {
+      grid-template-columns: repeat(5, 33.800mm);
+      grid-auto-rows: 29.272mm;
+      gap: 2mm;
+    }
+
+    .unit-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 33.800mm);
+      grid-auto-rows: 29.272mm;
+      gap: 2mm;
+      justify-content: center;
+    }
+
+    .unit {
+      width: 33.800mm;
+      height: 29.272mm;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .cut-line {
+      stroke: #111;
+      stroke-width: 0.22;
+    }
+
+    .cut-line.blank {
+      fill: white;
+    }
+
+    .cut-line.letters {
+      fill: #fdeaea;
+    }
+
+    .cut-line.numbers {
+      fill: #e9eefa;
+    }
+
+    .arrow {
+      fill: none;
+      stroke: #111;
+      stroke-width: 0.9;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .unit-label {
+      font-size: 11.492px;
+      font-weight: 800;
+      font-family: Arial, Helvetica, sans-serif;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      fill: #111;
+    }
+
+    @media screen {
+      .page {
+        margin: 8mm auto;
+        box-shadow: 0 0 8mm rgba(0, 0, 0, 0.25);
+      }
+    }
+
+    @media print {
+      body {
+        background: white;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="page">
+      <div class="card">
+        <div class="card-name">Flag</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Can&#x27;t move or be moved more than one space per turn.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Walk</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Move to the empty space in front of you.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Run</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Move to the empty space one space in front of you.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Push</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Move target unit one space away from you, and move into the space previously occupied by the target unit.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Pull</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Move target unit into your space, and move yourself into the empty space in the opposite direction.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Swap</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Swap places with target unit.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Lift</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Move target unit to an adjacent empty space.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Jump</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Move into the empty space on the opposite side of an adjacent unit.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Climb</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Move on top of an adjacent unit. That unit effectively doesn&#x27;t exist while you are on top.</span></span></div>
+      </div>
+  </section>
+  <section class="page">
+      <div class="card">
+        <div class="card-name">Catapult</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>If in your home space, move to any empty space (not an enemy home space).</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Bungee</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Move to an empty home space.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Circle</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Move to an empty space adjacent to the target unit.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Rush</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Move forwards in a straight line until blocked by another unit (can&#x27;t rush the edge of the board).</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Burrow</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Move to any empty space that is not adjacent to any unit.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Leader</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Whenever this unit moves or is moved, move an adjacent unit into the empty space left behind, if possible.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Heavy</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>At the end of your turn, each unit within two spaces is moved one space towards this unit, if possible.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Stinky</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>At the end of your turn, each adjacent unit is moved one space away in a straight line, if possible.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Trade</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Swap a power with an adjacent unit.</span></span></div>
+      </div>
+  </section>
+  <section class="page">
+      <div class="card">
+        <div class="card-name">Stun</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Remove a power from an adjacent unit.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Trigger</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Activate one active power of an adjacent unit as if it belonged to this unit.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Mystery</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Replace this power with a power from your hand.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Fast</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Can activate this unit twice per turn.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Reach</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target a unit one space away.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Spin</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target all adjacent units.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Beam</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target all units in front of you.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Chain</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target all connected units.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Halo</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target all units exactly one space away.</span></span></div>
+      </div>
+  </section>
+  <section class="page">
+      <div class="card">
+        <div class="card-name">Colorblind</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target all neutral units.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Liability</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target all friendly units.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Bully</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target all outnumbered units.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Stalker</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target all units that have no adjacent units.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Spotlight</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target all units adjacent to the <em>Flag</em>.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Homeward</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target all units in any home space.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Vengeance</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target all enemy units that killed one of your units last turn.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Six-shooter</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target the nearest unit in each of the six directions.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Bridge</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Any two units adjacent to this unit count as adjacent to each other.</span></span></div>
+      </div>
+  </section>
+  <section class="page">
+      <div class="card">
+        <div class="card-name">Telepath</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>This unit is adjacent to all friendly units.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Dogpile</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>If the target unit is outnumbered, kill it.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Ninja</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>If you are outnumbered, kill the target unit.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Backstab</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>If there is a friendly unit on the opposite side of the target unit, kill the target unit.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Click Click</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Either add a token to this unit, or remove a token and kill the target unit.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Neutralize</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Kill all powerless units on the board.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Explosive</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>If this unit is killed, kill all adjacent units.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Spiky</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>If this unit is moved by another unit, kill that unit.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Banish</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Move target unit to an empty home space.</span></span></div>
+      </div>
+  </section>
+  <section class="page">
+      <div class="card">
+        <div class="card-name">Split</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Create a friendly unit in the space in front. Give it any number of this units powers.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Trail</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Whenever this unit moves or is moved, and leaves behind an empty space, put a powerless neutral unit in that space.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Convert</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Replace the target neutral unit with a friendly unit with the same powers.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Pacifist</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>While this unit is adjacent to the <em>Flag</em>, units that would be killed from their board instead return to an empty home space, if one exists.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Recycle</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>While this unit is adjacent to the <em>Flag</em>, when you would return one of your powers to the deck, return it to your hand instead.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Mine</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>If adjacent to the <em>Flag</em>, draw a power.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Vacuum</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>While this unit is adjacent to the <em>Flag</em>, any powers removed from the board are applied to this unit.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Nuke</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>If adjacent to the <em>Flag</em>, either add a token to this unit, or remove 3 tokens and kill every unit on the board.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Strong</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Count as 1 extra unit for scoring/outnumbering.</span></span></div>
+      </div>
+  </section>
+  <section class="page">
+      <div class="card">
+        <div class="card-name">Weak</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target unit counts as 1 less unit for scoring/outnumbering.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Grip</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target unit can&#x27;t move itself, but can still be moved by other units.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Jammer</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target unit can&#x27;t activate active powers.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Forbid</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Name a (non-free) power. The opponent can&#x27;t apply or activate that power on their next turn.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Phoenix</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>If this unit is killed, place it in an empty space in your home.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Bequeath</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Kill this unit. Distribute its powers among any other units in play.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Recall</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Kill the target friendly unit and return its powers to your hand.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Stubborn</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>This unit can&#x27;t be moved (but can still move).</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Possess</div>
+        <div class="card-text"><span><strong>Active</strong><br><span>Move this units powers onto target unit, then kill this unit.</span></span></div>
+      </div>
+  </section>
+  <section class="page">
+      <div class="card">
+        <div class="card-name">Lifeguard</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target unit cannot be killed.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Friendly</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Target neutral unit counts as friendly for scoring/outnumbering.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Twitchy</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>Whenever an enemy unit becomes adjacent to this unit, immediately rotate this unit to face it.</span></span></div>
+      </div>
+      <div class="card">
+        <div class="card-name">Remote</div>
+        <div class="card-text"><span><strong>Passive</strong><br><span>When this unit activates a power, it may activate from the space of any friendly unit instead.</span></span></div>
+      </div>
+  </section>
+  <section class="page unit-page">
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line letters" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">A</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line letters" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">B</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line letters" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">C</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line letters" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">D</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line letters" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">E</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line numbers" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">1</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line numbers" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">2</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line numbers" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">3</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line numbers" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">4</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line numbers" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          <text class="unit-label" x="16.900" y="16.978">5</text>
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line blank" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line blank" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line blank" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line blank" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          
+        </svg>
+      </div>
+      <div class="unit">
+        <svg viewBox="0 0 33.800 29.272" aria-hidden="true">
+          <polygon class="cut-line blank" points="8.450,0.000 25.350,0.000 33.800,14.636 25.350,29.272 8.450,29.272 0.000,14.636" />
+          <path class="arrow" d="M 16.900 10.245 V 3.513 M 12.844 6.732 L 16.900 3.513 L 20.956 6.732" />
+          
+        </svg>
+      </div>
+  </section>
+</body>
+</html>

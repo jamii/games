@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Board</title>
+  <style>
+    @page {
+      size: Letter landscape;
+      margin: 0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #eee;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #111;
+    }
+
+    .page {
+      width: 279.4mm;
+      height: 215.9mm;
+      margin: 0 auto;
+      padding: 5mm;
+      background: white;
+    }
+
+    svg {
+      display: block;
+      width: 269.400mm;
+      height: 205.900mm;
+    }
+
+    .cell polygon {
+      stroke: #111;
+      stroke-width: 0.22;
+    }
+
+    .empty polygon {
+      fill: white;
+    }
+
+    .home polygon {
+      fill: #dcecff;
+    }
+
+    .flag polygon {
+      fill: #fff0a8;
+    }
+
+    text {
+      font-family: Arial, Helvetica, sans-serif;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      pointer-events: none;
+    }
+
+    .cell-label {
+      font-size: 9.367px;
+      font-weight: 800;
+      fill: #111;
+    }
+
+    .slot {
+      stroke: #555;
+      stroke-width: 0.25;
+      stroke-dasharray: 1.6 1.2;
+    }
+
+    .slot.letters {
+      fill: #fdeaea;
+    }
+
+    .slot.numbers {
+      fill: #e9eefa;
+    }
+
+    .slot-label {
+      font-size: 5px;
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+
+    .slot-label.letters {
+      fill: #8b2222;
+    }
+
+    .slot-label.numbers {
+      fill: #1f3e7a;
+    }
+
+    @media screen {
+      .page {
+        margin: 8mm auto;
+        box-shadow: 0 0 8mm rgba(0, 0, 0, 0.25);
+      }
+    }
+
+    @media print {
+      body {
+        background: white;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="page">
+    <svg viewBox="0 0 269.400 205.900" aria-label="Game board">
+      <rect class="slot letters" x="0.000" y="0.000" width="35.450" height="9.000" rx="1" />
+      <text class="slot-label letters" x="17.725" y="4.500">A</text>
+      <rect class="slot letters" x="37.450" y="0.000" width="63.500" height="9.000" rx="1" />
+      <text class="slot-label letters" x="69.200" y="4.500">B</text>
+      <rect class="slot letters" x="102.950" y="0.000" width="63.500" height="9.000" rx="1" />
+      <text class="slot-label letters" x="134.700" y="4.500">C</text>
+      <rect class="slot letters" x="168.450" y="0.000" width="63.500" height="9.000" rx="1" />
+      <text class="slot-label letters" x="200.200" y="4.500">D</text>
+      <rect class="slot letters" x="233.950" y="0.000" width="35.450" height="9.000" rx="1" />
+      <text class="slot-label letters" x="251.675" y="4.500">E</text>
+      <g class="cell empty"><polygon points="90.793,10.000 105.428,18.450 105.428,35.350 90.793,43.800 76.157,35.350 76.157,18.450" /></g>
+      <g class="cell home"><polygon points="120.064,10.000 134.700,18.450 134.700,35.350 120.064,43.800 105.428,35.350 105.428,18.450" /><text class="cell-label" x="120.064" y="26.900">H</text></g>
+      <g class="cell home"><polygon points="149.336,10.000 163.972,18.450 163.972,35.350 149.336,43.800 134.700,35.350 134.700,18.450" /><text class="cell-label" x="149.336" y="26.900">H</text></g>
+      <g class="cell empty"><polygon points="178.607,10.000 193.243,18.450 193.243,35.350 178.607,43.800 163.972,35.350 163.972,18.450" /></g>
+      <g class="cell empty"><polygon points="76.157,35.350 90.793,43.800 90.793,60.700 76.157,69.150 61.521,60.700 61.521,43.800" /></g>
+      <g class="cell empty"><polygon points="105.428,35.350 120.064,43.800 120.064,60.700 105.428,69.150 90.793,60.700 90.793,43.800" /></g>
+      <g class="cell home"><polygon points="134.700,35.350 149.336,43.800 149.336,60.700 134.700,69.150 120.064,60.700 120.064,43.800" /><text class="cell-label" x="134.700" y="52.250">H</text></g>
+      <g class="cell empty"><polygon points="163.972,35.350 178.607,43.800 178.607,60.700 163.972,69.150 149.336,60.700 149.336,43.800" /></g>
+      <g class="cell empty"><polygon points="193.243,35.350 207.879,43.800 207.879,60.700 193.243,69.150 178.607,60.700 178.607,43.800" /></g>
+      <g class="cell empty"><polygon points="61.521,60.700 76.157,69.150 76.157,86.050 61.521,94.500 46.885,86.050 46.885,69.150" /></g>
+      <g class="cell empty"><polygon points="90.793,60.700 105.428,69.150 105.428,86.050 90.793,94.500 76.157,86.050 76.157,69.150" /></g>
+      <g class="cell empty"><polygon points="120.064,60.700 134.700,69.150 134.700,86.050 120.064,94.500 105.428,86.050 105.428,69.150" /></g>
+      <g class="cell empty"><polygon points="149.336,60.700 163.972,69.150 163.972,86.050 149.336,94.500 134.700,86.050 134.700,69.150" /></g>
+      <g class="cell empty"><polygon points="178.607,60.700 193.243,69.150 193.243,86.050 178.607,94.500 163.972,86.050 163.972,69.150" /></g>
+      <g class="cell empty"><polygon points="207.879,60.700 222.515,69.150 222.515,86.050 207.879,94.500 193.243,86.050 193.243,69.150" /></g>
+      <g class="cell empty"><polygon points="46.885,86.050 61.521,94.500 61.521,111.400 46.885,119.850 32.249,111.400 32.249,94.500" /></g>
+      <g class="cell empty"><polygon points="76.157,86.050 90.793,94.500 90.793,111.400 76.157,119.850 61.521,111.400 61.521,94.500" /></g>
+      <g class="cell empty"><polygon points="105.428,86.050 120.064,94.500 120.064,111.400 105.428,119.850 90.793,111.400 90.793,94.500" /></g>
+      <g class="cell flag"><polygon points="134.700,86.050 149.336,94.500 149.336,111.400 134.700,119.850 120.064,111.400 120.064,94.500" /><text class="cell-label" x="134.700" y="102.950">F</text></g>
+      <g class="cell empty"><polygon points="163.972,86.050 178.607,94.500 178.607,111.400 163.972,119.850 149.336,111.400 149.336,94.500" /></g>
+      <g class="cell empty"><polygon points="193.243,86.050 207.879,94.500 207.879,111.400 193.243,119.850 178.607,111.400 178.607,94.500" /></g>
+      <g class="cell empty"><polygon points="222.515,86.050 237.151,94.500 237.151,111.400 222.515,119.850 207.879,111.400 207.879,94.500" /></g>
+      <g class="cell empty"><polygon points="61.521,111.400 76.157,119.850 76.157,136.750 61.521,145.200 46.885,136.750 46.885,119.850" /></g>
+      <g class="cell empty"><polygon points="90.793,111.400 105.428,119.850 105.428,136.750 90.793,145.200 76.157,136.750 76.157,119.850" /></g>
+      <g class="cell empty"><polygon points="120.064,111.400 134.700,119.850 134.700,136.750 120.064,145.200 105.428,136.750 105.428,119.850" /></g>
+      <g class="cell empty"><polygon points="149.336,111.400 163.972,119.850 163.972,136.750 149.336,145.200 134.700,136.750 134.700,119.850" /></g>
+      <g class="cell empty"><polygon points="178.607,111.400 193.243,119.850 193.243,136.750 178.607,145.200 163.972,136.750 163.972,119.850" /></g>
+      <g class="cell empty"><polygon points="207.879,111.400 222.515,119.850 222.515,136.750 207.879,145.200 193.243,136.750 193.243,119.850" /></g>
+      <g class="cell empty"><polygon points="76.157,136.750 90.793,145.200 90.793,162.100 76.157,170.550 61.521,162.100 61.521,145.200" /></g>
+      <g class="cell empty"><polygon points="105.428,136.750 120.064,145.200 120.064,162.100 105.428,170.550 90.793,162.100 90.793,145.200" /></g>
+      <g class="cell home"><polygon points="134.700,136.750 149.336,145.200 149.336,162.100 134.700,170.550 120.064,162.100 120.064,145.200" /><text class="cell-label" x="134.700" y="153.650">H</text></g>
+      <g class="cell empty"><polygon points="163.972,136.750 178.607,145.200 178.607,162.100 163.972,170.550 149.336,162.100 149.336,145.200" /></g>
+      <g class="cell empty"><polygon points="193.243,136.750 207.879,145.200 207.879,162.100 193.243,170.550 178.607,162.100 178.607,145.200" /></g>
+      <g class="cell empty"><polygon points="90.793,162.100 105.428,170.550 105.428,187.450 90.793,195.900 76.157,187.450 76.157,170.550" /></g>
+      <g class="cell home"><polygon points="120.064,162.100 134.700,170.550 134.700,187.450 120.064,195.900 105.428,187.450 105.428,170.550" /><text class="cell-label" x="120.064" y="179.000">H</text></g>
+      <g class="cell home"><polygon points="149.336,162.100 163.972,170.550 163.972,187.450 149.336,195.900 134.700,187.450 134.700,170.550" /><text class="cell-label" x="149.336" y="179.000">H</text></g>
+      <g class="cell empty"><polygon points="178.607,162.100 193.243,170.550 193.243,187.450 178.607,195.900 163.972,187.450 163.972,170.550" /></g>
+      <rect class="slot numbers" x="0.000" y="196.900" width="35.450" height="9.000" rx="1" />
+      <text class="slot-label numbers" x="17.725" y="201.400">1</text>
+      <rect class="slot numbers" x="37.450" y="196.900" width="63.500" height="9.000" rx="1" />
+      <text class="slot-label numbers" x="69.200" y="201.400">2</text>
+      <rect class="slot numbers" x="102.950" y="196.900" width="63.500" height="9.000" rx="1" />
+      <text class="slot-label numbers" x="134.700" y="201.400">3</text>
+      <rect class="slot numbers" x="168.450" y="196.900" width="63.500" height="9.000" rx="1" />
+      <text class="slot-label numbers" x="200.200" y="201.400">4</text>
+      <rect class="slot numbers" x="233.950" y="196.900" width="35.450" height="9.000" rx="1" />
+      <text class="slot-label numbers" x="251.675" y="201.400">5</text>
+    </svg>
+  </section>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<h2>basics</h2>
+<p>Hex board. Looks like:</p>
+<p>x H H x
+x x H x x
+x x x x x x
+x x x F x x x
+x x x x x x
+x x H x x<br />
+x H H x</p>
+<p>H: home
+F: flag
+x: empty</p>
+<p>Setup:</p>
+<ul>
+<li>Find the <em>Walk</em> power and put the <em>Free Power X</em> token on it.</li>
+<li>Deal 6 power cards faceup beside the board.</li>
+<li>Take turns drawing until each player has 3 cards. You can draw either:
+<ul>
+<li>A faceup card (and immediately replace it with a card from the deck).</li>
+<li>The top card of the deck.</li>
+</ul>
+</li>
+<li>Put the flag in the space marked 'F'. The flag is a neutral unit with the <em>Flag</em> power.</li>
+<li>First player starts with 0 points, second player with 1 point.</li>
+</ul>
+<p>Advanced options:</p>
+<ul>
+<li>Replace <em>Walk</em> with a different movement power.</li>
+<li>Draw a power from the deck and put the <em>Free Power Y</em> token on it.</li>
+<li>Draw a power from the deck and add it to the flag.
+<ul>
+<li>If it's an active power, either player can activate it on their turn.</li>
+</ul>
+</li>
+</ul>
+<p>Each turn:</p>
+<ol>
+<li>Discard the leftmost faceup card from the table. Slide all faceup cards to the left. Draw a new faceup card on the right.</li>
+<li>Draw 2 cards.</li>
+<li>In any order, all optional:</li>
+</ol>
+<ul>
+<li>Spawn a unit in one of your home spaces.</li>
+<li>Apply a power from your hand to a unit in one of your home spaces.</li>
+<li>Apply a free power to a unit in one of your home spaces.</li>
+<li>Activate one of your units:
+<ul>
+<li>Rotate the unit to face in any direction.</li>
+<li>Optionally, use one of the active powers on the unit.</li>
+<li>Each unit can only be activated once per turn.</li>
+</ul>
+</li>
+</ul>
+<p>At the end of your turn, if you have more units adjacent to the <em>Flag</em> power then the enemy, score 1 point.</p>
+<p>The first player to score 5 points wins.</p>
+<h2>units and powers</h2>
+<p>You can have up to five units. If you ever create a sixth unit, you must immediately kill one of your units.</p>
+<p>Each unit can have up to three powers.</p>
+<p>If a fourth power would be added for any reason, the player whose turn it is decides which of the existing powers to replace.</p>
+<p>A unit can have multiple copies of the same power. If this is a passive power, the effects stack.</p>
+<p>Powers are either active or passive:</p>
+<ul>
+<li>Passive powers apply at all times.</li>
+<li>Active powers must be activated.</li>
+</ul>
+<p>Powers either activate entirely or not at all.
+Eg <em>Push</em> can't be activated unless there is an empty space behind the pushed unit.
+Eg <em>Push</em> with <em>Beam</em> can't be activated unless there is an empty space behind <em>every</em> pushed unit.</p>
+<p>If a power says 'target unit', by default this is the unit directly in front of you. But some passive powers may modify the target.
+If there is more than one target-modifying passive on a unit, take the union of all the targets.
+Eg with <em>Beam</em> and <em>Spin</em> target all units on the line ahead <em>and</em> all adjacent units.</p>
+<p>When a unit is killed, remove it from the board and discard all its powers and tokens.</p>
+<h2>miscellanea</h2>
+<p>Whenever there is a decision to be made (eg which power activates first at the end of the turn, which target unit is targetted first, which power is removed when a unit would have too many powers) it is made by the current player however they prefer. You never make decisions during the other players turn.</p>
+<p>Only friendly units can exist in your home space. Any power that would cause a neutral or enemy unit to move into your homespace doesn't work.</p>
+<p>A unit is 'outnumbered' if there are more adjacent enemies than allies (including the unit itself).</p>
+<p>Connected units are adjacent units, units adjacent to those units, etc.</p>
+<p>'Move' vs 'be moved'. If the movement power belongs to this unit, this unit moved. If the movement power belongs to another unit, this unit was moved.</p>
+<p>If the <em>Flag</em> power is ever removed from the board for any reason, immediately:</p>
+<ul>
+<li>Kill any unit in the 'F' space.</li>
+<li>Create a neutral unit in the 'F' space.</li>
+<li>Add the <em>Flag</em> power.</li>
+</ul>
+<p>If the <em>Flag</em> power is moved to a non-neutral unit, that unit does not count as adjacent to the flag.</p>
