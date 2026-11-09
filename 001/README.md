@@ -15,6 +15,12 @@ Two tabs in the same browser can also be the two players. If a player's tab is c
 whoever opens the page next can take over their seat. It works on phones too (tap and
 drag with a finger).
 
+To play against the computer, take a seat and click **Add a bot** on the other one. The
+bot uses the trained network in `bots/net.json` if there is one (see [BOT.md](BOT.md)),
+and otherwise the hand-made search. Environment variables: `BOT_NET` (another network),
+`BOT_SEARCH` (search size, default `400x4`; bigger is stronger and slower) and
+`BOT_DELAY_MS` (pause before each of its actions, default 700, so you can follow them).
+
 The board diagram is read from `rules.md` and the cards from `powers.md` (both in this
 folder) at compile time, so after editing either one, rebuild to pick up the changes.
 
@@ -81,6 +87,9 @@ to clone. `examples/legal_actions.rs` plays a few moves
   legal actions and prompts.
 - `src/main.rs` is the axum server: one websocket per browser, and each one gets its own
   view of the game.
+- `src/bot.rs`, `src/encode.rs`, `src/net.rs`, `src/bin/selfplay.rs` and `tools/` are the
+  bots and the tools for training them and running balance experiments: see
+  [BOT.md](BOT.md).
 - `static/` holds the front end (plain HTML, CSS and JS, embedded in the binary).
 
 ## Tests
@@ -102,6 +111,8 @@ browsers agree and hands stay hidden.
   exactly the legal moves and that illegal moves are refused.
 - `tests/playthrough.js` uses manual rules, and includes a game where one player is on a
   phone.
+- `tests/bot_seat.js` plays a game against the server's bot (start the server with
+  `BOT_DELAY_MS=50 PORT=3124`).
 
 ```bash
 PORT=3123 cargo run --release &

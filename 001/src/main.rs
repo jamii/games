@@ -1,8 +1,14 @@
-//! A web app for playing one game of 001 between two browsers.
+//! A web app for playing one game of 001 between two browsers, or against a
+//! bot.
 //!
 //! The server holds a single game in memory. Each browser connects over a
 //! websocket, takes one of the two seats, and gets its own view of the game
 //! (hands are hidden from the other player) every time anything changes.
+//!
+//! A bot can take an empty seat (with automatic rules). It searches with the
+//! network in `BOT_NET` (default `bots/net.json`, if present) or else the
+//! hand-made evaluation; `BOT_SEARCH` sets the search size (default 400x4)
+//! and `BOT_DELAY_MS` the pause before each of its actions (default 700).
 
 use axum::Router;
 use axum::extract::State;
@@ -10,8 +16,10 @@ use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::http::header;
 use axum::response::{Html, IntoResponse};
 use axum::routing::get;
+use game_001::bot::{Agent, Evaluator, MctsAgent, MctsConfig, to_move};
 use game_001::data::{self, CellKind, Seat, data};
-use game_001::game::{Action, Game, LABELS, MAX_POWERS, Options, SEAT_NAMES};
+use game_001::game::{Action, Game, LABELS, MAX_POWERS, Options, Phase, SEAT_NAMES};
+use game_001::net::Net;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -49,6 +57,75 @@ enum ClientMsg {
     Chat {
         text: String,
     },
+    AddBot {
+        seat: Seat,
+    },
+    RemoveBot {
+        seat: Seat,
+    },
+}
+
+/// How the bot plays.
+struct BotConfig {
+    net: Option<Arc<Net>>,
+    simulations: u32,
+    samples: u32,
+    delay: std::time::Duration,
+}
+
+impl BotConfig {
+    fn from_env() -> BotConfig {
+        let path = std::env::var("BOT_NET").unwrap_or_else(|_| "bots/net.json".into());
+        let net = if std::path::Path::new(&path).exists() {
+            match Net::load(&path) {
+                Ok(net) => Some(Arc::new(net)),
+                Err(e) => {
+                    eprintln!("Not using the bot network: {e}");
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        let search = std::env::var("BOT_SEARCH").unwrap_or_else(|_| "400x4".into());
+        let (sims, samples) = search.split_once('x').unwrap_or((&search, "4"));
+        BotConfig {
+            net,
+            simulations: sims.parse().unwrap_or(400),
+            samples: samples.parse().unwrap_or(4),
+            delay: std::time::Duration::from_millis(
+                std::env::var("BOT_DELAY_MS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(700),
+            ),
+        }
+    }
+
+    fn describe(&self) -> String {
+        format!(
+            "{} search, {}x{}",
+            if self.net.is_some() {
+                "network-guided"
+            } else {
+                "hand-made"
+            },
+            self.simulations,
+            self.samples
+        )
+    }
+
+    fn agent(&self, seed: u64) -> MctsAgent {
+        let mut config = MctsConfig {
+            simulations: self.simulations,
+            samples: self.samples,
+            ..MctsConfig::default()
+        };
+        if let Some(net) = &self.net {
+            config.eval = Evaluator::Net(net.clone());
+        }
+        MctsAgent::new(config, seed)
+    }
 }
 
 #[derive(Serialize)]
@@ -72,6 +149,13 @@ struct Server {
     seats: [Option<String>; 2],
     conns: HashMap<u64, Conn>,
     next_conn: u64,
+    /// Seats played by the bot.
+    bots: [bool; 2],
+    /// A bot is choosing an action.
+    thinking: bool,
+    /// Counts changes to the game, so a bot's late answer can be thrown away.
+    version: u64,
+    bot: Arc<BotConfig>,
 }
 
 type Shared = Arc<Mutex<Server>>;
@@ -86,6 +170,10 @@ impl Server {
             seats: [None, None],
             conns: HashMap::new(),
             next_conn: 1,
+            bots: [false, false],
+            thinking: false,
+            version: 0,
+            bot: Arc::new(BotConfig::from_env()),
         };
         server.push_log(None, lines);
         server
@@ -124,14 +212,22 @@ impl Server {
     }
 
     fn seat_connected(&self, seat: Seat) -> bool {
-        self.seats[seat]
-            .as_ref()
-            .is_some_and(|token| self.conns.values().any(|c| c.token.as_ref() == Some(token)))
+        self.bots[seat]
+            || self.seats[seat]
+                .as_ref()
+                .is_some_and(|token| self.conns.values().any(|c| c.token.as_ref() == Some(token)))
     }
 
     fn state_message(&self, seat: Option<Seat>) -> String {
         let seats: Vec<Value> = (0..2)
-            .map(|s| json!({ "claimed": self.seats[s].is_some(), "connected": self.seat_connected(s) }))
+            .map(|s| {
+                json!({
+                    "claimed": self.seats[s].is_some() || self.bots[s],
+                    "connected": self.seat_connected(s),
+                    "bot": self.bots[s],
+                    "thinking": self.bots[s] && self.thinking,
+                })
+            })
             .collect();
         let log = &self.log[self.log.len().saturating_sub(LOG_SENT)..];
         json!({
@@ -183,6 +279,9 @@ impl Server {
                 if self.seats[seat].as_ref() == Some(&token) {
                     return;
                 }
+                if self.bots[seat] {
+                    return self.send_error(id, "A bot is playing there: remove it first.", None);
+                }
                 if self.seat_connected(seat) {
                     return self.send_error(id, "Someone else is sitting there.", None);
                 }
@@ -217,6 +316,7 @@ impl Server {
                 match Game::new(options) {
                     Ok((game, lines)) => {
                         self.game = game;
+                        self.version += 1;
                         self.history.clear();
                         self.push_log(
                             Some(seat),
@@ -233,30 +333,8 @@ impl Server {
                 let Some(seat) = self.seat_of(id) else {
                     return self.send_error(id, "Take a seat to play.", None);
                 };
-                // While a prompt is waiting, the game is still the state before
-                // the action, plus the prompt.
-                let mut before = self.game.clone();
-                before.pending = None;
-                match self.game.apply(seat, &action) {
-                    Ok(lines) => {
-                        let revealed = self.game.draws != before.draws;
-                        let turn_over =
-                            before.turn != self.game.turn || before.current != self.game.current;
-                        if revealed || turn_over || !action.undoable() {
-                            self.history.clear();
-                        } else if self.game.pending.is_none()
-                            && !matches!(action, Action::Cancel)
-                            && !lines.is_empty()
-                        {
-                            let what = lines.first().cloned().unwrap_or_default();
-                            self.history.push((before, what));
-                            if self.history.len() > UNDO_LIMIT {
-                                self.history.remove(0);
-                            }
-                        }
-                        self.push_log(Some(seat), lines);
-                        self.broadcast();
-                    }
+                match self.apply_action(seat, &action) {
+                    Ok(()) => self.broadcast(),
                     Err(e) => {
                         let retry = e.forceable.then(|| {
                             let mut value =
@@ -283,6 +361,7 @@ impl Server {
                     return self.send_error(id, "Nothing to undo.", None);
                 };
                 self.game = game;
+                self.version += 1;
                 self.push_log(
                     Some(seat),
                     vec![format!("{} undid: {what}", SEAT_NAMES[seat])],
@@ -304,8 +383,114 @@ impl Server {
                 self.push_log(None, Vec::new());
                 self.broadcast();
             }
+
+            ClientMsg::AddBot { seat } => {
+                if seat > 1 {
+                    return self.send_error(id, "Unknown seat.", None);
+                }
+                if self.bots[seat] {
+                    return;
+                }
+                if self.seat_connected(seat) {
+                    return self.send_error(id, "Someone is sitting there.", None);
+                }
+                self.seats[seat] = None;
+                self.bots[seat] = true;
+                self.version += 1;
+                let mut lines = vec![format!(
+                    "A bot took the {} seat ({}).",
+                    SEAT_NAMES[seat],
+                    self.bot.describe()
+                )];
+                if !self.game.automatic {
+                    lines.push("The bot only plays with automatic rules.".into());
+                }
+                self.push_log(None, lines);
+                self.broadcast();
+            }
+
+            ClientMsg::RemoveBot { seat } => {
+                if seat <= 1 && self.bots[seat] {
+                    self.bots[seat] = false;
+                    self.version += 1;
+                    self.push_log(
+                        None,
+                        vec![format!("The bot left the {} seat.", SEAT_NAMES[seat])],
+                    );
+                    self.broadcast();
+                }
+            }
         }
     }
+
+    /// Carries out a player's (or the bot's) action, keeping the undo history.
+    fn apply_action(
+        &mut self,
+        seat: Seat,
+        action: &Action,
+    ) -> Result<(), game_001::game::ActionError> {
+        // While a prompt is waiting, the game is still the state before
+        // the action, plus the prompt.
+        let mut before = self.game.clone();
+        before.pending = None;
+        let lines = self.game.apply(seat, action)?;
+        self.version += 1;
+        let revealed = self.game.draws != before.draws;
+        let turn_over = before.turn != self.game.turn || before.current != self.game.current;
+        if revealed || turn_over || !action.undoable() {
+            self.history.clear();
+        } else if self.game.pending.is_none()
+            && !matches!(action, Action::Cancel)
+            && !lines.is_empty()
+        {
+            let what = lines.first().cloned().unwrap_or_default();
+            self.history.push((before, what));
+            if self.history.len() > UNDO_LIMIT {
+                self.history.remove(0);
+            }
+        }
+        self.push_log(Some(seat), lines);
+        Ok(())
+    }
+}
+
+/// If it's a bot's move, think on another thread and then play it (unless the
+/// game changed in the meantime), and repeat.
+fn run_bot(shared: Shared) {
+    let (game, seat, version, bot) = {
+        let mut s = shared.lock().unwrap();
+        if s.thinking || !s.game.automatic || matches!(s.game.phase, Phase::Over { .. }) {
+            return;
+        }
+        let seat = to_move(&s.game);
+        if !s.bots[seat] {
+            return;
+        }
+        s.thinking = true;
+        s.broadcast();
+        (s.game.clone(), seat, s.version, s.bot.clone())
+    };
+    std::thread::spawn(move || {
+        let started = std::time::Instant::now();
+        let action = bot.agent(version).choose(&game, seat);
+        if let Some(rest) = bot.delay.checked_sub(started.elapsed()) {
+            std::thread::sleep(rest);
+        }
+        {
+            let mut s = shared.lock().unwrap();
+            s.thinking = false;
+            // Shouldn't fail: the bot only picks legal actions.
+            if s.version == version
+                && s.bots[seat]
+                && let Err(e) = s.apply_action(seat, &action)
+            {
+                s.push_log(None, vec![format!("The bot got stuck: {}", e.message)]);
+                s.bots[seat] = false;
+            }
+            s.broadcast();
+        }
+        run_bot(shared);
+    });
 }
 
 /// The static data the client needs: the board, the cards and the rules.
@@ -356,7 +541,10 @@ async fn handle_socket(mut socket: WebSocket, shared: Shared) {
                 None => break,
             },
             incoming = socket.recv() => match incoming {
-                Some(Ok(Message::Text(text))) => shared.lock().unwrap().handle(id, text.as_str()),
+                Some(Ok(Message::Text(text))) => {
+                    shared.lock().unwrap().handle(id, text.as_str());
+                    run_bot(shared.clone());
+                }
                 Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
                 Some(Ok(_)) => {}
             },
@@ -374,6 +562,7 @@ async fn main() {
         .and_then(|p| p.parse().ok())
         .unwrap_or(3000);
     let shared: Shared = Arc::new(Mutex::new(Server::new()));
+    println!("Bot: {}.", shared.lock().unwrap().bot.describe());
     let app = Router::new()
         .route("/", get(|| async { Html(INDEX_HTML) }))
         .route(

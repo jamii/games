@@ -418,11 +418,15 @@ function rosterHtml(seat) {
   const turn = g.current === seat && g.phase.kind !== 'over';
   let status = '';
   if (me() === seat) status = '<span class="tag you">you</span><button class="mini" data-act="leave">Leave seat</button>';
+  else if (sv.bot) status = `<span class="tag online">bot${sv.thinking ? ' · thinking…' : ''}</span><button class="mini" data-act="remove-bot" data-seat="${seat}">Remove bot</button>`;
   else if (sv.claimed && sv.connected) status = '<span class="tag online">online</span>';
   else if (sv.claimed) status = '<span class="tag offline">offline</span>';
   else status = '<span class="tag">empty seat</span>';
   if (me() === null && !sv.connected) {
     status += ` <button class="mini primary" data-act="claim" data-seat="${seat}">Play as ${seatName(seat)}</button>`;
+  }
+  if (me() !== seat && !sv.connected) {
+    status += ` <button class="mini" data-act="add-bot" data-seat="${seat}" title="Let the bot play this seat">Add a bot</button>`;
   }
   const adjust = canMain() && !auto()
     ? ` <button class="mini" data-act="score" data-seat="${seat}" data-delta="-1" title="Manual score adjustment">−</button><button class="mini" data-act="score" data-seat="${seat}" data-delta="1" title="Manual score adjustment">+</button>`
@@ -565,6 +569,7 @@ const HELP = `<ul>
       panel to kill units, move powers, add tokens and so on. When a rule check blocks something a power allows,
       choose <b>Do it anyway</b>.</li>
     <li>Switch between them with the rules button at the top. <b>Undo</b> works until you draw or end your turn.</li>
+    <li>To play against the computer, take a seat and click <b>Add a bot</b> on the other one (automatic rules only).</li>
   </ul>`;
 
 function unitPanel(u) {
@@ -1034,6 +1039,8 @@ function handleAct(a, d) {
   switch (a) {
     case 'claim': send({ type: 'claim', seat: +d.seat }); break;
     case 'leave': send({ type: 'leave' }); break;
+    case 'add-bot': send({ type: 'add_bot', seat: +d.seat }); break;
+    case 'remove-bot': send({ type: 'remove_bot', seat: +d.seat }); break;
     case 'undo': send({ type: 'undo' }); break;
     case 'end-turn': openEndTurn(); break;
     case 'toggle-mode':
