@@ -293,6 +293,15 @@ progress. (Each match is 100 games, so each Elo step is uncertain by about
 ±70.) As a direct check, **net6 beat net0 88–12** (about +350 Elo), so the
 chain isn't just accumulated noise.
 
+Progress stalled around net7–net8. To see whether the network was too small, a
+network 4 times the size (width 128, 3 layers, 640k parameters) was trained
+on the same recent samples: it lost to net8 41–59, and its value head
+overfitted more. So the limit here isn't network size but the number of
+independent games: a training window holds about 4,000 game results, and both
+networks learn to recognise games rather than judge positions. The next
+levers are more games per generation (4,000+) and more search per move, which
+is what a many-core rented machine buys.
+
 The web app's bot (**Add a bot**) uses `bots/net.json`, currently net6.
 
 ### Where to run it, and what it costs
