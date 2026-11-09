@@ -12,11 +12,11 @@ balance problems. The plan has two stages:
 
 ## Key findings
 
-- **The flag is too easy to move or capture.** *Swap*, *Heavy* and *Trade* are
-  each worth about +20 to +30 percentage points of win rate to the player
-  holding them, far more than any other card measured, because they drag the
-  flag towards their owner (Swap, Heavy, also Pull) or take the *Flag* power
-  outright (Trade). With the flag fixed in place and the *Flag* power not
+- **The flag is too easy to move or capture.** *Swap*, *Heavy*, *Pull* and
+  *Trade* are each worth about +20 to +30 percentage points of win rate to the
+  player holding them, far more than any other card measured, because they
+  drag the flag towards their owner (Swap, Heavy, Pull) or take the *Flag*
+  power outright (Trade). With the flag fixed in place and the *Flag* power not
   tradeable, all three drop back in line with other cards. See
   [Cards](#cards) and RULES_DECISIONS.md.
 - **The first player's advantage is small.** With the stronger bot, the current
@@ -207,9 +207,9 @@ other cards. **Making the flag immovable fixes both.**
 the *Flag* power itself: their unit becomes the flag, which they can then
 walk towards their own units. So `--fixed-flag` also stops Trade taking the
 *Flag* power, and with that, Trade drops to +1.5 ± 8.0 with the same bot.
-**The fix for all three: the flag can't be moved by powers, and the *Flag*
-power can't be traded.** (Pull also moves the flag, less often; it's
-covered by the same rule.)
+**Pull is the fourth**: worth +30.2 ± 8.5 in hand, by pulling the flag into
+your unit's space. **The fix for all of them: the flag can't be moved by
+powers, and the *Flag* power can't be traded.**
 
 **The correlational measures are unreliable**: they rated Forbid and Bully
 weak (both are among the strongest cards in hand), and Trail and Explosive
