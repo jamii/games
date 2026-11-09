@@ -1385,3 +1385,23 @@ fn offered_prompt_options_can_always_be_finished() {
     assert!(!g.is_legal(0, &lift), "so it isn't offered");
     check_offers_can_finish(&g, 0, 0);
 }
+
+#[test]
+fn with_a_fixed_flag_trade_cant_take_the_flag_power() {
+    for fixed in [false, true] {
+        let mut g = game();
+        g.options.fixed_flag = fixed;
+        let flag = g.units.iter().find(|u| u.is_flag()).unwrap().id;
+        let flag_cell = at(&g, flag);
+        let a = put(
+            &mut g,
+            Some(0),
+            (flag_cell.0 - 2, flag_cell.1),
+            E,
+            &["Trade"],
+        );
+        let traded = activate(&mut g, a, E, 0).is_ok();
+        assert_eq!(traded, !fixed, "fixed flag: {fixed}");
+        assert_eq!(g.unit(a).is_flag(), !fixed);
+    }
+}

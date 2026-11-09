@@ -2144,13 +2144,17 @@ impl Game {
             }
             Trade => {
                 let mine = u.powers.clone();
+                // With the fixed-flag variant, the Flag power can't be taken.
+                let fixed_flag = self.options.fixed_flag;
+                let flag = data().flag;
+                let takeable = move |q: &PowerRef| !(fixed_flag && q.power == flag);
                 let target = self.pick_target(
                     user,
                     origin,
                     "Trade with which unit?",
                     |g, t| {
                         let theirs = &g.unit(t).powers;
-                        !theirs.is_empty()
+                        theirs.iter().any(takeable)
                             && mine
                                 .iter()
                                 .any(|p| !theirs.iter().any(|q| q.power == p.power))
@@ -2164,6 +2168,9 @@ impl Game {
                         continue;
                     }
                     for (j, q) in theirs.iter().enumerate() {
+                        if !takeable(q) {
+                            continue;
+                        }
                         pairs.push((
                             i,
                             j,
