@@ -50,28 +50,38 @@ names = card_names()
 weights = json.load(open(os.path.join(root, "results", "weights.json")))["weights"]
 learned = dict(zip(names, weights[9:9 + len(names)]))
 
+def worth(directory):
+    """Paired worth in hand for each card measured in this directory."""
+    out = {}
+    for remove in sorted(glob.glob(os.path.join(root, directory, "*-remove.jsonl"))):
+        card = os.path.basename(remove)[:-len("-remove.jsonl")]
+        give = remove.replace("-remove.jsonl", "-give.jsonl")
+        if not os.path.exists(give):
+            continue
+
+        def second(path):
+            return {g["seed"]: int(g["winner"] != g["first_player"]) for g in load(path) if g["winner"] is not None}
+
+        a, b = second(remove), second(give)
+        seeds = sorted(set(a) & set(b))
+        d = [b[x] - a[x] for x in seeds]
+        m = sum(d) / len(d)
+        sd = math.sqrt(sum((x - m) ** 2 for x in d) / (len(d) - 1))
+        half = 1.96 * sd / math.sqrt(len(d))
+        text = f"{100 * m:+.1f} ± {100 * half:.1f}"
+        out[card] = (m, f"**{text}**" if abs(m) > half else text)
+    return out
+
+
+stage1, stage2, fixed = worth("cards"), worth("cards-net"), worth("cards-fixed-flag")
 rows = []
-for remove in sorted(glob.glob(os.path.join(root, "cards", "*-remove.jsonl"))):
-    card = os.path.basename(remove)[:-len("-remove.jsonl")]
-    give = remove.replace("-remove.jsonl", "-give.jsonl")
-    if not os.path.exists(give):
-        continue
-    def second(path):
-        return {g["seed"]: int(g["winner"] != g["first_player"]) for g in load(path) if g["winner"] is not None}
-    a, b = second(remove), second(give)
-    seeds = sorted(set(a) & set(b))
-    d = [b[s] - a[s] for s in seeds]
-    m = sum(d) / len(d)
-    sd = math.sqrt(sum((x - m) ** 2 for x in d) / (len(d) - 1))
-    half = 1.96 * sd / math.sqrt(len(d))
-    worth = f"{100 * m:+.1f} ± {100 * half:.1f}"
-    if abs(m) > half:
-        worth = f"**{worth}**"
+for card, (m, text) in stage1.items():
     rel = 100 * (lift[card] / count[card] - mean) if count[card] else float("nan")
-    rows.append((m, f"| {card} | {worth} | {rel:+.0f} | {learned.get(card, float('nan')):+.2f} |"))
+    rows.append((m, f"| {card} | {text} | {stage2.get(card, ('', ''))[1]} | {fixed.get(card, ('', ''))[1]} "
+                    f"| {rel:+.0f} | {learned.get(card, float('nan')):+.2f} |"))
 rows.sort(key=lambda r: -r[0])
-table = ("| card | worth in hand (points) | relative lift (points) | learned value (log-odds) |\n"
-         "|---|---|---|---|\n" + "\n".join(r for _, r in rows))
+table = ("| card | worth in hand (points) | with the stage 2 bot | with the flag fixed | relative lift (points) "
+         "| learned value (log-odds) |\n|---|---|---|---|---|---|\n" + "\n".join(r for _, r in rows))
 path = os.path.join(root, "BOT.md")
 text = open(path).read()
 text = re.sub(r"<!-- cards -->.*<!-- /cards -->", lambda _: f"<!-- cards -->\n{table}\n<!-- /cards -->", text,

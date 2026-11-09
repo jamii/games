@@ -137,23 +137,25 @@ difference in the second player's win rate is what having the card in hand
 is worth. It costs 400 games per card (about 30 minutes on one core). Results
 so far, for cards the two measures above rated strong, weak, or disagreed on
 (`cards/`; 200 paired games each with `mcts:400x4`, ± is a 95% interval, bold
-where it excludes 0; rebuilt by `tools/card_table.py`):
+where it excludes 0; rebuilt by `tools/card_table.py`). Some cards were also
+measured with the stage 2 bot (net5, `cards-net/`) and under the fixed-flag
+variant (`cards-fixed-flag/`):
 
 <!-- cards -->
-| card | worth in hand (points) | relative lift (points) | learned value (log-odds) |
-|---|---|---|---|
-| Swap | **+31.3 ± 8.1** | +3 | +0.49 |
-| Heavy | **+29.6 ± 8.7** | +15 | +0.51 |
-| Remote | **+11.7 ± 6.8** | +19 | +0.65 |
-| Bully | **+9.1 ± 7.7** | -1 | -0.64 |
-| Forbid | **+8.0 ± 7.4** | -8 | -0.23 |
-| Phoenix | +6.1 ± 6.2 | +15 | -0.60 |
-| Liability | +3.0 ± 7.2 | +1 | -0.60 |
-| Trail | -0.5 ± 7.2 | +17 | +0.65 |
-| Stubborn | -1.5 ± 6.4 | +16 | -0.38 |
-| Split | -2.5 ± 8.2 | -8 | +0.25 |
-| Bungee | -3.0 ± 7.6 | -13 | -0.21 |
-| Explosive | -4.0 ± 6.7 | +11 | +0.72 |
+| card | worth in hand (points) | with the stage 2 bot | with the flag fixed | relative lift (points) | learned value (log-odds) |
+|---|---|---|---|---|---|
+| Swap | **+31.3 ± 8.1** |  | +6.8 ± 9.1 | +3 | +0.49 |
+| Heavy | **+29.6 ± 8.7** | **+19.0 ± 9.4** | +0.0 ± 7.2 | +15 | +0.51 |
+| Remote | **+11.7 ± 6.8** |  |  | +19 | +0.65 |
+| Bully | **+9.1 ± 7.7** |  |  | -1 | -0.64 |
+| Forbid | **+8.0 ± 7.4** |  |  | -8 | -0.23 |
+| Phoenix | +6.1 ± 6.2 |  |  | +15 | -0.60 |
+| Liability | +3.0 ± 7.2 |  |  | +1 | -0.60 |
+| Trail | -0.5 ± 7.2 |  |  | +17 | +0.65 |
+| Stubborn | -1.5 ± 6.4 |  |  | +16 | -0.38 |
+| Split | -2.5 ± 8.2 |  |  | -8 | +0.25 |
+| Bungee | -3.0 ± 7.6 |  |  | -13 | -0.21 |
+| Explosive | -4.0 ± 6.7 |  |  | +11 | +0.72 |
 <!-- /cards -->
 
 **Swap and Heavy are balance problems, and the cause is moving the flag.**
