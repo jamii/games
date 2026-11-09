@@ -143,6 +143,7 @@ where it excludes 0; rebuilt by `tools/card_table.py`):
 | card | worth in hand (points) | relative lift (points) | learned value (log-odds) |
 |---|---|---|---|
 | Swap | **+31.3 ± 8.1** | +3 | +0.49 |
+| Heavy | **+29.6 ± 8.7** | +15 | +0.51 |
 | Remote | **+11.7 ± 6.8** | +19 | +0.65 |
 | Bully | **+9.1 ± 7.7** | -1 | -0.64 |
 | Forbid | **+8.0 ± 7.4** | -8 | -0.23 |
@@ -154,15 +155,17 @@ where it excludes 0; rebuilt by `tools/card_table.py`):
 | Explosive | -4.0 ± 6.7 | +11 | +0.72 |
 <!-- /cards -->
 
-**Swap is a balance problem.** In hand it's worth +31 points (the second
-player's win rate goes from 40% to 72%), three times any other card measured,
-and the stage 2 bot drafts it 79% of the times it's offered. The reason
-(`examples/swap_usage.rs`): 68% of the bots' swaps are with the flag. The
-*Flag* card only limits the flag to one space per turn, so Swap moves the flag
-next to your units, every turn, gaining 1.4 in flag lead per swap on average.
-Possible fixes: Swap can't target the flag, or the flag can't be moved by
-powers at all (which also affects Pull, Push, Heavy and the like). Re-run
-`tools/card_value.sh Swap` after the change to check.
+**Swap and Heavy are balance problems, and the cause is moving the flag.**
+In hand each is worth about +30 points (the second player's win rate goes
+from about 40% to 72%), three times any other card measured, and they're the
+stage 2 bot's top two draft picks (taken about 80% of the times they're
+offered). `examples/flag_moves.rs` shows why: the *Flag* card only limits the
+flag to one space per turn, so both are ways to drag the flag towards your
+own units. 68% of the bots' swaps are with the flag (gaining 1.4 in flag lead
+each), and Heavy pulls the flag at the end of the turn, gaining 2.2 in flag
+lead each time, right before scoring. Pull does the same, less often.
+Possible fixes: the flag can't be moved by powers at all, or only by its own
+holder.
 
 **The correlational measures are unreliable**: they rated Forbid and Bully
 weak (both are among the strongest cards in hand), and Trail and Explosive
