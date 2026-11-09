@@ -136,16 +136,20 @@ removed, and with it given to the second player after the draft. The
 difference in the second player's win rate is what having the card in hand
 is worth. It costs 400 games per card (about 30 minutes on one core). Results
 so far, for cards the two measures above rated strong, weak, or disagreed on
-(`cards/`; 200 paired games each, ± is a 95% interval):
+(`cards/`; 200 paired games each with `mcts:400x4`, ± is a 95% interval, bold
+where it excludes 0; rebuilt by `tools/card_table.py`):
 
-| card | worth in hand | lift said | learned value said |
+<!-- cards -->
+| card | worth in hand (points) | relative lift (points) | learned value (log-odds) |
 |---|---|---|---|
-| Remote | **+11.7 ± 6.8** | strong | strong |
-| Forbid | **+8.0 ± 7.4** | weak | weak |
-| Phoenix | +6.1 ± 6.2 | strong | weak |
-| Trail | −0.5 ± 7.2 | strong | strong |
-| Bungee | −3.0 ± 7.6 | weak | weak |
-| Stubborn | −1.5 ± 6.4 | strong | weak |
+| Remote | **+11.7 ± 6.8** | +19 | +0.65 |
+| Forbid | **+8.0 ± 7.4** | -8 | -0.23 |
+| Phoenix | +6.1 ± 6.2 | +15 | -0.60 |
+| Trail | -0.5 ± 7.2 | +17 | +0.65 |
+| Stubborn | -1.5 ± 6.4 | +16 | -0.38 |
+| Split | -2.5 ± 8.2 | -8 | +0.25 |
+| Bungee | -3.0 ± 7.6 | -13 | -0.21 |
+<!-- /cards -->
 
 **The correlational measures got Forbid and Trail backwards**, so treat them
 as pointers at most and use the causal test for decisions. Running it for all
