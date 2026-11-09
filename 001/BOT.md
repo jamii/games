@@ -184,8 +184,12 @@ cards as a stronger player uses them.
   16 actions per turn, which hides it in experiments, but *Split* is still the
   most used active power (1.8 times per game, after *Walk*).
 - Self-play also found engine bugs that the scenario tests missed (a crash when
-  an end-of-turn effect referred to a dead unit, and actions with prompts not
-  counting towards the per-turn cap), now fixed and covered by tests.
+  an end-of-turn effect referred to a dead unit, actions with prompts not
+  counting towards the per-turn cap, and, during stage 2 training, *Lift* with
+  *Chain* offering a move that couldn't be finished, because the search for a
+  way to finish gave up optimistically), now fixed and covered by tests. To
+  debug one, rerun the game with `GAME_DEBUG=1` (selfplay saves its actions)
+  and `cargo run --release --example replay -- bug-seed-N.json`.
 
 
 

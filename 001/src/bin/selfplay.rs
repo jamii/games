@@ -189,6 +189,8 @@ fn play(
     let mut stats = Stats::default();
     let mut samples: Vec<Sample> = Vec::new();
     let mut decisions: Vec<Decision> = Vec::new();
+    // Every action, to replay a game that hit an engine bug.
+    let mut history: Vec<(usize, Action)> = Vec::new();
     let started = Instant::now();
     while !matches!(game.phase, Phase::Over { .. }) && game.turn <= max_turns {
         let seat = to_move(&game);
@@ -280,8 +282,16 @@ fn play(
                 "seed {seed}: ENGINE BUG: legal action {action:?} failed: {} (game stopped)",
                 e.message
             );
+            if std::env::var_os("GAME_DEBUG").is_some() {
+                history.push((seat, action.clone()));
+                let path = format!("bug-seed-{seed}.json");
+                let dump = json!({ "options": options, "seed": seed, "actions": history });
+                std::fs::write(&path, dump.to_string()).expect("write the bug report");
+                eprintln!("wrote the game's actions to {path}");
+            }
             break;
         }
+        history.push((seat, action.clone()));
         let after = owned(&game);
         for s in 0..2 {
             stats.units_lost[s] += before[s].saturating_sub(after[s]);

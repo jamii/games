@@ -665,10 +665,14 @@ fn run(base: &Game, action: &Action, seat: Seat, answers: &[usize]) -> (R<()>, G
     (result, game, ctx.log)
 }
 
-/// Can the action be completed after these answers?
+/// Can the action be completed after these answers? A depth-first search
+/// for a way to finish, giving up (false) after `budget` replays. Giving up
+/// counts as "no", so anything offered has a known way to finish; and since the
+/// search always runs in the same order, searching again from further along
+/// that way, with the same budget, finds it again.
 fn viable(base: &Game, action: &Action, seat: Seat, answers: Vec<usize>, budget: &mut u32) -> bool {
     if *budget == 0 {
-        return true;
+        return false;
     }
     *budget -= 1;
     match run(base, action, seat, &answers).0 {
@@ -762,12 +766,12 @@ impl Game {
                 }
                 Err(Stop::Illegal(message)) => return Err(hard(message)),
                 Err(Stop::Need(mut prompt, preview)) => {
-                    let mut budget = SEARCH_BUDGET;
+                    // Each option gets its own budget (see `viable`).
                     let keep: Vec<usize> = (0..prompt.options.len())
                         .filter(|&i| {
                             let mut next = answers.clone();
                             next.push(i);
-                            viable(&base, &action, seat, next, &mut budget)
+                            viable(&base, &action, seat, next, &mut SEARCH_BUDGET.clone())
                         })
                         .collect();
                     match keep.len() {

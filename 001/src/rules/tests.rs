@@ -1323,3 +1323,65 @@ fn with_a_fixed_flag_no_power_moves_it() {
         assert_eq!(at(&g, flag) != flag_cell, !fixed);
     }
 }
+
+/// Replays a saved game (from `GAME_DEBUG=1 selfplay`).
+fn replay(json: &str) -> Game {
+    let dump: serde_json::Value = serde_json::from_str(json).unwrap();
+    let options: Options = serde_json::from_value(dump["options"].clone()).unwrap();
+    let seed = dump["seed"].as_u64().unwrap();
+    let actions: Vec<(Seat, Action)> = serde_json::from_value(dump["actions"].clone()).unwrap();
+    let (mut g, _) = Game::new(Options {
+        seed: Some(seed),
+        ..options
+    })
+    .unwrap();
+    for (seat, action) in actions {
+        g.apply(seat, &action).unwrap();
+    }
+    g
+}
+
+/// Every legal action can be carried out, answering each prompt with any of
+/// the options offered (here: the first and the last, all the way down).
+fn check_offers_can_finish(g: &Game, seat: Seat, depth: u32) {
+    for action in g.legal_actions(seat) {
+        let mut next = g.clone();
+        next.apply(seat, &action)
+            .unwrap_or_else(|e| panic!("{action:?} was offered but failed: {}", e.message));
+        if next.pending.is_some() && depth < 12 {
+            let n = next.prompt().unwrap().options.len();
+            for index in [0, n - 1] {
+                let mut chosen = next.clone();
+                chosen
+                    .apply(seat, &Action::Choose { index })
+                    .unwrap_or_else(|e| {
+                        panic!("option {index} was offered but failed: {}", e.message)
+                    });
+                if chosen.pending.is_some() {
+                    check_offers_can_finish(&chosen, seat, depth + 1);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn offered_prompt_options_can_always_be_finished() {
+    // Lift with Chain asks where each connected unit goes: too many
+    // combinations to search fully. The search used to give up by offering
+    // options anyway, and some couldn't be finished.
+    let g = replay(include_str!("fixtures/chain-lift.json"));
+    let lift = Action::Activate {
+        unit: 2,
+        facing: 2,
+        power: Some(1),
+        origin: None,
+        force: false,
+    };
+    let mut budget = 1_000_000;
+    let possible = viable(&g, &lift, 0, Vec::new(), &mut budget);
+    assert!(!possible, "a full search finds no way to finish it");
+    assert!(budget > 0);
+    assert!(!g.is_legal(0, &lift), "so it isn't offered");
+    check_offers_can_finish(&g, 0, 0);
+}
