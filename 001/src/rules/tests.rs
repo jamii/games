@@ -322,6 +322,31 @@ fn lift_circle_catapult_bungee_burrow() {
 }
 
 #[test]
+fn actions_with_prompts_count_towards_the_turn() {
+    let mut g = game();
+    let a = put(&mut g, Some(0), (-5, 2), E, &["Lift", "Fast"]);
+    put(&mut g, Some(1), (-3, 2), E, &[]);
+    activate(&mut g, a, E, 0).unwrap();
+    assert_eq!(g.actions_this_turn, 0, "not counted until it's done");
+    choose_cell(&mut g, -2, 1);
+    assert_eq!(g.actions_this_turn, 1);
+    g.apply(
+        0,
+        &Action::Activate {
+            unit: a,
+            facing: SE,
+            power: None,
+            origin: None,
+            force: false,
+        },
+    )
+    .unwrap();
+    assert_eq!(g.actions_this_turn, 2);
+    end_turn(&mut g);
+    assert_eq!(g.actions_this_turn, 0);
+}
+
+#[test]
 fn cancelling_a_prompt_changes_nothing() {
     let mut g = game();
     let a = put(&mut g, Some(0), (-5, 2), E, &["Lift"]);

@@ -210,6 +210,15 @@ Tests for most of these are in `src/rules/tests.rs`.
 
 ## Not decided yet
 
+- **A *Split* chain gives unlimited actions in a turn.** A unit created this
+  turn hasn't been activated yet, so it can act straight away. A unit with
+  *Split* can give the new unit *Split*. If the player already has five units,
+  they kill the old one, and the new unit (one space further forward) splits
+  again. The rules as written allow this forever, and the bots found it: one
+  game had over 500 splits in a single turn. Options: new units can't be
+  activated on the turn they're created, or *Split* can't give itself away.
+  (Bots cap themselves at 16 actions per turn, which hides this in experiments.)
+
 - Rule details from the playtesting notes that aren't in the rules text, like "first player
   doesn't draw on their first turn" and the second player's starting points, are options in
   the **New game** dialog.

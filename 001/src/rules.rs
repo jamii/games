@@ -712,7 +712,6 @@ impl Game {
                 if self.pending.is_some() {
                     return Err(hard("Answer the current question first."));
                 }
-                let was_main = self.phase == Phase::Main;
                 // Most actions need no answers: try resolving on a single copy
                 // first, and only set up a prompt if one is needed.
                 let (result, game, log) = run(self, action, seat, &[]);
@@ -728,9 +727,6 @@ impl Game {
                         self.settle(base, action.clone(), seat, Vec::new())?
                     }
                 };
-                if was_main && self.phase == Phase::Main && self.current == seat {
-                    self.actions_this_turn += 1;
-                }
                 Ok(log)
             }
         }
@@ -999,6 +995,11 @@ impl Game {
             Phase::Over { .. } => illegal("The game is over."),
         };
         let me = SEAT_NAMES[seat];
+        // Count the action as part of resolving it, so the count is right
+        // however many prompts the action goes through (each answer replays it).
+        if self.phase == Phase::Main && !matches!(action, Action::EndTurn { .. }) {
+            self.actions_this_turn += 1;
+        }
         match *action {
             Action::TakeFaceup { .. } | Action::TakeDeck => {
                 if self.phase == Phase::Main {
