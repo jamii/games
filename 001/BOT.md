@@ -285,6 +285,7 @@ against the previous network (`results/stage2/`):
 | net6 | 92–8 | 58–42 | +424 |
 | net7 | 91–9 | 55–45 | +459 |
 | net8 | 92–8 | 50–50 | +459 |
+| net9 | 96–4 | 62–38 | +544 |
 <!-- /generations -->
 
 The yardstick saturates (the game has enough luck that even a much stronger
@@ -293,16 +294,18 @@ progress. (Each match is 100 games, so each Elo step is uncertain by about
 ±70.) As a direct check, **net6 beat net0 88–12** (about +350 Elo), so the
 chain isn't just accumulated noise.
 
-Progress stalled around net7–net8. To see whether the network was too small, a
-network 4 times the size (width 128, 3 layers, 640k parameters) was trained
-on the same recent samples: it lost to net8 41–59, and its value head
-overfitted more. So the limit here isn't network size but the number of
-independent games: a training window holds about 4,000 game results, and both
-networks learn to recognise games rather than judge positions. The next
-levers are more games per generation (4,000+) and more search per move, which
-is what a many-core rented machine buys.
+Progress slowed around net7–net8 (net8 drew net7, though net9 then beat net8
+62–38). To see whether the network was too small, a network 4 times the size
+(width 128, 3 layers, 640k parameters) was trained on the same recent
+samples: it lost to net8 41–59, and its value head overfitted more. So the
+limit here isn't network size but the number of independent games: a
+training window held about 4,000 game results, and both networks learn to
+recognise games rather than judge positions. From generation 10 the window
+is 8 generations (capped at the newest 900,000 samples). The next levers are
+more games per generation (4,000+) and more search per move, which is what a
+many-core rented machine buys.
 
-The web app's bot (**Add a bot**) uses `bots/net.json`, currently net6.
+The web app's bot (**Add a bot**) uses `bots/net.json`, currently net9.
 
 ### Where to run it, and what it costs
 

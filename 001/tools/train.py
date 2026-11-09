@@ -17,6 +17,7 @@ Needs PyTorch and numpy.
 
 import argparse
 import collections
+import gzip
 import json
 import math
 import os
@@ -51,7 +52,8 @@ def load(paths, max_samples=None):
     # With a limit, keep the newest (the files are read in order).
     samples, layout = collections.deque(maxlen=max_samples), None
     for path in paths:
-        with open(path) as f:
+        opener = gzip.open if path.endswith(".gz") else open
+        with opener(path, "rt") as f:
             for line in f:
                 if not line.strip():
                     continue

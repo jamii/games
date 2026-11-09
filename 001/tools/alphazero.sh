@@ -89,7 +89,9 @@ for g in $(seq 1 "$generations"); do
     if [ ! -s "$dir/net$g.json" ]; then
         files=()
         for k in $(seq $((g - window + 1)) "$g"); do
-            if [ "$k" -ge 0 ] && [ -s "$dir/gen$k.jsonl" ]; then files+=("$dir/gen$k.jsonl"); fi
+            if [ "$k" -lt 0 ]; then continue; fi
+            if [ -s "$dir/gen$k.jsonl" ]; then files+=("$dir/gen$k.jsonl");
+            elif [ -s "$dir/gen$k.jsonl.gz" ]; then files+=("$dir/gen$k.jsonl.gz"); fi
         done
         echo "== training net$g on ${files[*]}"
         $python tools/train.py "${files[@]}" --init "$dir/net$prev.json" --out "$dir/net$g.json" \
