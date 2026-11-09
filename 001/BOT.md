@@ -92,10 +92,22 @@ are in `results/` (`results/summary.txt` has the full card table).
 | 2 points | 49% (45–53%) | 10.8 |
 
 600 games each, on the same 600 deals. Each starting point is worth about 5
-percentage points. With the current 1 point the first player still has a
-small edge (the interval only just reaches 50%); 2 points looks even for bots
-of this strength, and shortens games. Stronger players may value tempo
-differently, so this is worth re-running with the stage 2 bot.
+percentage points to these bots, and with the current 1 point the first player
+still has a small edge.
+
+**With the stronger stage 2 bot** (net2, `mctsN:200x4`, 200 games each on the
+first 200 of the same deals, `results/stage2-sweep/`):
+
+| second player starts with | first player wins (95% interval) | turns |
+|---|---|---|
+| 0 points | 55% (48–62%) | 11.8 |
+| 1 point (the current rules) | 50% (44–57%) | 10.6 |
+| 2 points | 52% (46–59%) | 9.4 |
+
+Better play shrinks the first player's advantage: even with no compensation
+it's about 55%, and **the current 1 point looks fair**. The stage 1 bots
+overstated the advantage. (200 games can't separate 50% from 52%; the
+intervals are about ±7 points.)
 
 ### Cards
 
