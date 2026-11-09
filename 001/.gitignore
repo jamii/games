@@ -10,3 +10,5 @@ __pycache__/
 /results/stage2-sweep/*.part
 /cards-net/*.log
 /cards-net/*.part
+/cards-fixed-flag/*.log
+/cards-fixed-flag/*.part

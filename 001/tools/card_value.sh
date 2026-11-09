@@ -7,7 +7,9 @@
 #   tools/card_value.sh CARD [GAMES] [AGENT] [OUT_DIR]
 #
 # Defaults: 200 games, mcts:400x4 for both players, results in cards/.
-# THREADS=N limits the worker threads (default: all cores).
+# THREADS=N limits the worker threads (default: all cores). EXTRA passes more
+# options to selfplay (eg EXTRA=--fixed-flag to measure under a rules variant;
+# use a different OUT_DIR for each variant).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 card=${1:?usage: tools/card_value.sh CARD [GAMES] [AGENT] [OUT_DIR]}
@@ -21,7 +23,7 @@ for mode in remove give; do
     if [ ! -s "$file" ]; then
         if [ "$mode" = remove ]; then flag=(--remove "$card"); else flag=(--give "second:$card"); fi
         ./target/release/selfplay --games "$games" --first-seed 50000 --agents "$agent,$agent" --max-turns 60 \
-            --variant "$card-$mode" "${flag[@]}" ${THREADS:+--threads "$THREADS"} --out "$file.part" 2> "$out/$card-$mode.log"
+            --variant "$card-$mode" "${flag[@]}" ${THREADS:+--threads "$THREADS"} ${EXTRA:-} --out "$file.part" 2> "$out/$card-$mode.log"
         mv "$file.part" "$file"
     fi
 done

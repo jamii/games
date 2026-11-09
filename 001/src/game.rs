@@ -174,6 +174,10 @@ pub struct Options {
     pub given_first: Vec<usize>,
     #[serde(default)]
     pub given_second: Vec<usize>,
+    /// Balance variant: no power can move the flag (the unit with the *Flag*
+    /// power), instead of one space per turn.
+    #[serde(default)]
+    pub fixed_flag: bool,
 }
 
 fn default_automatic() -> bool {
@@ -203,6 +207,7 @@ impl Default for Options {
             removed: Vec::new(),
             given_first: Vec::new(),
             given_second: Vec::new(),
+            fixed_flag: false,
         }
     }
 }

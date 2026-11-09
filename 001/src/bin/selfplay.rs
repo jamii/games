@@ -14,6 +14,7 @@
 //!   --second-player-points K
 //!   --target-score K
 //!   --remove NAME[,NAME]   leave these cards out of the deck
+//!   --fixed-flag           rules variant: no power can move the flag
 //!   --give WHO:NAME[,...]  leave these cards out of the deck and give them to
 //!                          the first or second player (WHO is first or second)
 //!                          when the draft ends. Compare with --remove NAME on
@@ -374,6 +375,9 @@ fn main() {
     if let Some(names) = arg("--remove") {
         options.removed = names.split(',').map(power_index).collect();
     }
+    if args.iter().any(|a| a == "--fixed-flag") {
+        options.fixed_flag = true;
+    }
     if let Some(gifts) = arg("--give") {
         for gift in gifts.split(',') {
             match gift.split_once(':') {
@@ -393,6 +397,9 @@ fn main() {
         }
         if let Some(g) = arg("--give") {
             v += &format!(",give={g}");
+        }
+        if options.fixed_flag {
+            v += ",fixed-flag";
         }
         v
     });

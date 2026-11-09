@@ -1441,7 +1441,7 @@ impl Game {
         } else if u.has(Effect::Stubborn) {
             return false;
         }
-        if u.is_flag() && u.moved + hex_dist(u.cell, to) > 1 {
+        if u.is_flag() && (self.options.fixed_flag || u.moved + hex_dist(u.cell, to) > 1) {
             return false;
         }
         true

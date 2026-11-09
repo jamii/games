@@ -1302,3 +1302,24 @@ fn given_cards_arrive_after_the_draft_and_match_removed_deals() {
     );
     assert_eq!(a.hands[1 - second], b.hands[1 - second]);
 }
+
+#[test]
+fn with_a_fixed_flag_no_power_moves_it() {
+    for fixed in [false, true] {
+        let mut g = game();
+        g.options.fixed_flag = fixed;
+        let flag = g.units.iter().find(|u| u.is_flag()).unwrap().id;
+        let flag_cell = at(&g, flag);
+        // A unit facing the flag from the west, with Swap.
+        let a = put(
+            &mut g,
+            Some(0),
+            (flag_cell.0 - 2, flag_cell.1),
+            E,
+            &["Swap"],
+        );
+        let swapped = activate(&mut g, a, E, 0).is_ok();
+        assert_eq!(swapped, !fixed, "fixed flag: {fixed}");
+        assert_eq!(at(&g, flag) != flag_cell, !fixed);
+    }
+}
