@@ -67,16 +67,26 @@ fn main() {
             let seat = to_move(&game);
             let action = agents[seat].choose(&game, seat);
             decisions += 1;
-            let power = match &action {
+            // The power being used: this action's, or (for an answer to a
+            // prompt) the power of the action waiting for it.
+            let activation = match (&action, &game.pending) {
+                (Action::Choose { .. }, Some(p)) => p.action().clone(),
+                _ => action.clone(),
+            };
+            let power = match &activation {
                 Action::Activate {
                     unit,
                     power: Some(i),
                     ..
                 } => game
+                    .pending
+                    .as_ref()
+                    .map_or(&game, |p| &*p.preview)
                     .units
                     .iter()
                     .find(|u| u.id == *unit)
-                    .map(|u| u.powers[*i].power),
+                    .and_then(|u| u.powers.get(*i))
+                    .map(|p| p.power),
                 _ => None,
             };
             let before = game.clone();

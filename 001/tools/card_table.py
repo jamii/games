@@ -75,10 +75,11 @@ def worth(directory):
 
 stage1, stage2, fixed = worth("cards"), worth("cards-net"), worth("cards-fixed-flag")
 rows = []
-for card, (m, text) in stage1.items():
+for card in set(stage1) | set(stage2) | set(fixed):
+    m = max(v[card][0] for v in (stage1, stage2) if card in v) if card in stage1 or card in stage2 else 0
     rel = 100 * (lift[card] / count[card] - mean) if count[card] else float("nan")
-    rows.append((m, f"| {card} | {text} | {stage2.get(card, ('', ''))[1]} | {fixed.get(card, ('', ''))[1]} "
-                    f"| {rel:+.0f} | {learned.get(card, float('nan')):+.2f} |"))
+    cells = [d.get(card, (0, ""))[1] for d in (stage1, stage2, fixed)]
+    rows.append((m, f"| {card} | {' | '.join(cells)} | {rel:+.0f} | {learned.get(card, float('nan')):+.2f} |"))
 rows.sort(key=lambda r: -r[0])
 table = ("| card | worth in hand (points) | with the stage 2 bot | with the flag fixed | relative lift (points) "
          "| learned value (log-odds) |\n|---|---|---|---|---|---|\n" + "\n".join(r for _, r in rows))

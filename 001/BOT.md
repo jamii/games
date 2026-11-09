@@ -146,6 +146,7 @@ variant (`cards-fixed-flag/`):
 |---|---|---|---|---|---|
 | Swap | **+31.3 ± 8.1** | **+11.5 ± 8.8** | +6.8 ± 9.1 | +3 | +0.49 |
 | Heavy | **+29.6 ± 8.7** | **+19.0 ± 9.4** | +0.0 ± 7.2 | +15 | +0.51 |
+| Trade |  | **+29.5 ± 8.8** |  | -1 | +0.02 |
 | Remote | **+11.7 ± 6.8** |  |  | +19 | +0.65 |
 | Bully | **+9.1 ± 7.7** |  |  | -1 | -0.64 |
 | Forbid | **+8.0 ± 7.4** |  |  | -8 | -0.23 |
@@ -173,6 +174,14 @@ holder. **Testing the first** (`selfplay --fixed-flag`, `cards-fixed-flag/`):
 with the flag fixed in place, Swap in hand is worth +6.8 ± 9.1 points instead
 of +31.3, and Heavy +0.0 ± 7.2 instead of +29.6: both back in line with the
 other cards. **Making the flag immovable fixes both.**
+
+**Trade is the third way to take the flag.** With the stage 2 bot it's worth
++29.5 ± 8.8 in hand, and in 20 games the bots used it 22 times to trade for
+the *Flag* power itself: their unit becomes the flag, which they can then
+walk towards their own units. `--fixed-flag` doesn't stop that (it fixes the
+flag unit in place, not the power), so the full fix is that the flag can't
+be moved by powers and the *Flag* power can't be traded (or moved at all).
+Pull also moves the flag, less often.
 
 **The correlational measures are unreliable**: they rated Forbid and Bully
 weak (both are among the strongest cards in hand), and Trail and Explosive
