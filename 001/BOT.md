@@ -178,6 +178,7 @@ variant (`cards-fixed-flag/`):
 | Trade |  | **+29.5 ± 8.8** | +1.5 ± 8.0 (stage 2 bot) | -1 | +0.02 |
 | Strong | **+22.1 ± 8.5** |  |  | +24 | +0.20 |
 | Climb | **+20.3 ± 8.0** |  |  | -2 | +0.24 |
+| Weak | **+19.7 ± 8.0** |  |  | +12 | +0.23 |
 | Push | **+14.6 ± 7.9** |  |  | -1 | +0.14 |
 | Remote | **+11.7 ± 6.8** |  |  | +19 | +0.65 |
 | Bully | **+9.1 ± 7.7** |  |  | -1 | -0.64 |
@@ -225,10 +226,11 @@ there. The rules text only says buried units can't be targeted or activated;
 and home spaces"). If buried units should still count, Climb is probably
 fine.
 
-Strong (+22.1 ± 8.5) is a direct bonus: a unit with it counts twice at the
-flag, which is often the difference in a close count. It's the stage 2 bot's
-fourth favourite draft pick. Worth a look alongside Weak (target counts one
-less).
+Strong (+22.1 ± 8.5) and Weak (+19.7 ± 8.0) are direct changes to the count
+at the flag (a unit with Strong counts twice; Weak's target counts one less),
+which is often the difference in a close count. Strong is the stage 2 bot's
+fourth favourite draft pick. If they're meant to be ordinary cards, a cap
+(eg not at the flag, or only when outnumbering) would tone them down.
 
 Push (+14.6 ± 7.9) is strong in the ordinary way: only 8% of its uses moved
 the flag; the rest pushed enemy or other units for about +0.9 in flag lead
@@ -387,7 +389,10 @@ recognise games rather than judge positions. From generation 10 the window
 is 8 generations (capped at the newest 900,000 samples). That didn't move
 the plateau: net12 and net10 drew 52–48 head to head. From generation 14,
 self-play searches twice as much (`400x4`) to see if better search targets
-restart progress (the head-to-head matches stay at `200x4`). The next levers are
+restart progress (the head-to-head matches stay at `200x4`). They didn't:
+net14 beat net13 53–46, then net15 lost to net14 46–54. At this scale (one
+4-core machine, 1,000 games a generation) the bot has levelled off at about
+550 Elo above net0. The next levers are
 more games per generation (4,000+) and more search per move, which is what a
 many-core rented machine buys.
 
