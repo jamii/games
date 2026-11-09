@@ -350,7 +350,8 @@ samples: it lost to net8 41–59, and its value head overfitted more. So the
 limit here isn't network size but the number of independent games: a
 training window held about 4,000 game results, and both networks learn to
 recognise games rather than judge positions. From generation 10 the window
-is 8 generations (capped at the newest 900,000 samples). The next levers are
+is 8 generations (capped at the newest 900,000 samples). That didn't move
+the plateau: net12 and net10 drew 52–48 head to head. The next levers are
 more games per generation (4,000+) and more search per move, which is what a
 many-core rented machine buys.
 
