@@ -18,6 +18,7 @@ Needs PyTorch and numpy.
 import argparse
 import json
 import math
+import os
 import random
 import sys
 import time
@@ -301,10 +302,15 @@ def main():
     parser.add_argument("--value-weight", type=float, default=0.5)
     parser.add_argument("--max-samples", type=int, default=None, help="only read this many (newest last)")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--threads", type=int, default=None, help="CPU threads for PyTorch")
+    parser.add_argument("--threads", type=int, default=None,
+                        help="CPU threads for PyTorch (default: half the cores). Keep it below the number "
+                             "of idle cores: this network's operations are small, and when a thread "
+                             "waits for a core, training can slow down twentyfold")
     args = parser.parse_args()
     if args.threads:
         torch.set_num_threads(args.threads)
+    elif args.device == "cpu":
+        torch.set_num_threads(max(1, (os.cpu_count() or 2) // 2))
     random.seed(0)
     torch.manual_seed(0)
 
