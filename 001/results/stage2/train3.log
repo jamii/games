@@ -1,0 +1,8 @@
+627319 samples (565782 for training, 61537 held out), read in 62s; layout {'action': 307, 'cards': 64, 'cells': 37, 'global': 721, 'unit': 223}
+model {'d': 64, 'heads': 4, 'layers': 2, 'ff': 128}, 167874 parameters, on cpu
+epoch 1: train policy 2.446 (target entropy 2.279) top-1 50.7% value 0.088 outcome 0.442 | held out policy 2.453 (entropy 2.267) top-1 49.6% value 0.238 outcome 0.772 | 145s
+epoch 2: train policy 2.444 (target entropy 2.279) top-1 50.7% value 0.068 outcome 0.383 | held out policy 2.451 (entropy 2.267) top-1 49.8% value 0.246 outcome 0.777 | 145s
+epoch 3: train policy 2.439 (target entropy 2.279) top-1 51.3% value 0.056 outcome 0.346 | held out policy 2.449 (entropy 2.267) top-1 50.1% value 0.251 outcome 0.786 | 146s
+epoch 4: train policy 2.435 (target entropy 2.279) top-1 51.6% value 0.049 outcome 0.325 | held out policy 2.449 (entropy 2.267) top-1 50.0% value 0.254 outcome 0.788 | 145s
+keeping epoch 1
+wrote training/net3.json

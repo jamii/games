@@ -231,15 +231,19 @@ generation, `mctsN:200x4`, about 45 minutes a generation on this VM). Each
 network plays 100 games against the fixed yardstick `mcts:400x4`, and 100
 against the previous network (`results/stage2/`):
 
-| network | against `mcts:400x4` | against the previous network |
-|---|---|---|
-| net0 | 74–26 | |
-| net1 | 75–25 | 61–39 |
-| net2 | 81–19 | 59–41 |
+<!-- generations -->
+| network | against `mcts:400x4` | against the previous network | Elo vs net0 (chained) |
+|---|---|---|---|
+| net0 | 74–26 |  | 0 |
+| net1 | 75–25 | 61–39 | +78 |
+| net2 | 81–19 | 59–41 | +141 |
+| net3 | 83–17 | 63–37 | +233 |
+<!-- /generations -->
 
 The yardstick saturates (the game has enough luck that even a much stronger
 bot loses some games), so the head-to-head column is the better measure of
-progress: each generation so far is about 70 Elo stronger than the last.
+progress. (Each match is 100 games, so each Elo step is uncertain by about
+±70.)
 
 The web app's bot (**Add a bot**) uses `bots/net.json`, currently net2.
 
