@@ -1,0 +1,8 @@
+574899 samples (516781 for training, 58118 held out), read in 56s; layout {'action': 307, 'cards': 64, 'cells': 37, 'global': 721, 'unit': 223}
+model {'d': 64, 'heads': 4, 'layers': 2, 'ff': 128}, 167874 parameters, on cpu
+epoch 1: train policy 2.394 (target entropy 2.225) top-1 58.7% value 0.079 outcome 0.381 | held out policy 2.393 (entropy 2.220) top-1 58.3% value 0.211 outcome 0.680 | 150s
+epoch 2: train policy 2.392 (target entropy 2.225) top-1 58.7% value 0.059 outcome 0.319 | held out policy 2.393 (entropy 2.220) top-1 58.5% value 0.221 outcome 0.692 | 149s
+epoch 3: train policy 2.388 (target entropy 2.225) top-1 59.1% value 0.048 outcome 0.287 | held out policy 2.392 (entropy 2.220) top-1 58.2% value 0.224 outcome 0.697 | 126s
+epoch 4: train policy 2.384 (target entropy 2.225) top-1 59.4% value 0.042 outcome 0.271 | held out policy 2.392 (entropy 2.220) top-1 58.4% value 0.227 outcome 0.701 | 120s
+keeping epoch 1
+wrote training/net8.json
