@@ -387,6 +387,9 @@ pub struct Game {
     /// (victim's owner, killer) for each kill this turn and last turn (*Vengeance*).
     pub(crate) kills_this_turn: Vec<(Seat, u32)>,
     pub(crate) kills_last_turn: Vec<(Seat, u32)>,
+    /// Cards each player's opponent has seen go into their hand (taken from the
+    /// faceup row, or returned from the board). Only those still in the hand count.
+    pub(crate) public_hand: [Vec<usize>; 2],
 }
 
 /// splitmix64.
@@ -451,6 +454,7 @@ impl Game {
             forbidden: [Vec::new(), Vec::new()],
             kills_this_turn: Vec::new(),
             kills_last_turn: Vec::new(),
+            public_hand: [Vec::new(), Vec::new()],
         };
         game.scores[1 - first] = options.second_player_points;
 
@@ -561,7 +565,7 @@ impl Game {
                     }
                 ));
                 self.take_faceup(slot, log);
-                self.hands[seat].push(card);
+                self.add_to_hand(seat, card, true);
                 self.after_take(seat, log);
             }
 
@@ -579,7 +583,7 @@ impl Game {
                     }
                 ));
                 log.extend(notes);
-                self.hands[seat].push(card);
+                self.add_to_hand(seat, card, false);
                 self.after_take(seat, log);
             }
 
@@ -1115,6 +1119,54 @@ impl Game {
         card
     }
 
+    /// Put a card in a player's hand. `public` says whether the other player
+    /// sees which card it is.
+    pub(crate) fn add_to_hand(&mut self, seat: Seat, card: usize, public: bool) {
+        self.hands[seat].push(card);
+        self.public_hand[seat].retain(|&c| c != card);
+        if public {
+            self.public_hand[seat].push(card);
+        }
+    }
+
+    /// The cards in a player's hand that their opponent knows about.
+    pub fn known_hand(&self, seat: Seat) -> Vec<usize> {
+        self.public_hand[seat]
+            .iter()
+            .copied()
+            .filter(|c| self.hands[seat].contains(c))
+            .collect()
+    }
+
+    /// A copy of the game as `seat` might imagine it: everything they can see is
+    /// the same, and everything hidden from them (the cards in their opponent's
+    /// hand that they haven't seen, the order of the deck, and future shuffles)
+    /// is sampled at random from what's consistent with what they've seen.
+    /// Search bots play out several of these instead of peeking.
+    pub fn determinize(&self, seat: Seat, seed: u64) -> Game {
+        let mut game = self.clone();
+        let mut rng = seed ^ 0x5eed_cafe_f00d_d00d;
+        let opponent = 1 - seat;
+        let known = self.known_hand(opponent);
+        let hidden = self.hands[opponent].len() - known.len();
+        let mut pool: Vec<usize> = self.deck.clone();
+        pool.extend(self.hands[opponent].iter().filter(|c| !known.contains(c)));
+        shuffle(&mut pool, &mut rng);
+        let mut hand = known;
+        hand.extend(pool.drain(..hidden));
+        let resample = |g: &mut Game| {
+            g.hands[opponent] = hand.clone();
+            g.deck = pool.clone();
+            g.rng = rng;
+        };
+        resample(&mut game);
+        if let Some(pending) = game.pending.as_mut() {
+            resample(&mut pending.base);
+            resample(&mut pending.preview);
+        }
+        game
+    }
+
     /// Take a card from the faceup row: the cards to its right slide left to
     /// fill the gap, and a new card is drawn on the right.
     pub(crate) fn take_faceup(&mut self, slot: usize, log: &mut Vec<String>) -> usize {
@@ -1233,7 +1285,7 @@ impl Game {
     fn drop_power(&mut self, p: PowerRef, to_hand: Option<Seat>) {
         if p.card {
             match to_hand {
-                Some(seat) => self.hands[seat].push(p.power),
+                Some(seat) => self.add_to_hand(seat, p.power, true),
                 None => self.discard.push(p.power),
             }
         }

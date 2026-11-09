@@ -77,7 +77,7 @@ impl Opt {
 /// An action waiting for the current player to answer a prompt.
 #[derive(Clone, Debug)]
 pub struct Pending {
-    base: Box<Game>,
+    pub(crate) base: Box<Game>,
     action: Action,
     pub seat: Seat,
     answers: Vec<usize>,
@@ -327,19 +327,20 @@ impl Game {
     }
 
     fn on_top(&self, id: u32) -> bool {
-        self.top_at(self.unit(id).cell) == Some(id)
+        let u = self.unit(id);
+        !self.units.iter().any(|o| o.cell == u.cell && o.z > u.z)
     }
 
     /// Units on top of their stacks. The others don't take part in anything
     /// except the unit cap.
     fn top_ids(&self) -> Vec<u32> {
-        let mut ids: Vec<u32> = self
-            .units
-            .iter()
-            .filter(|u| self.top_at(u.cell) == Some(u.id))
-            .map(|u| u.id)
-            .collect();
-        ids.sort();
+        let mut ids = Vec::with_capacity(self.units.len());
+        for u in &self.units {
+            if !self.units.iter().any(|o| o.cell == u.cell && o.z > u.z) {
+                ids.push(u.id);
+            }
+        }
+        ids.sort_unstable();
         ids
     }
 
@@ -1692,7 +1693,7 @@ impl Game {
                     && self.adjacent_to_flag(r)
             })
         {
-            self.hands[owner].push(p.power);
+            self.add_to_hand(owner, p.power, true);
             ctx.log(format!(
                 "{} went back to {} hand (Recycle).",
                 power_name(p.power),
@@ -2295,7 +2296,7 @@ impl Game {
                 let mut log = Vec::new();
                 if i < self.faceup.len() {
                     let card = self.take_faceup(i, &mut log);
-                    self.hands[seat].push(card);
+                    self.add_to_hand(seat, card, true);
                     ctx.log(format!(
                         "{} took {} (Mine).",
                         SEAT_NAMES[seat],
@@ -2303,7 +2304,7 @@ impl Game {
                     ));
                 } else {
                     let card = self.draw_card(&mut log).expect("the deck isn't empty");
-                    self.hands[seat].push(card);
+                    self.add_to_hand(seat, card, false);
                     ctx.log(format!("{} drew a card (Mine).", SEAT_NAMES[seat]));
                 }
                 ctx.log.extend(log);
@@ -2345,7 +2346,7 @@ impl Game {
                     let powers = std::mem::take(&mut self.unit_mut(t).powers);
                     for p in powers {
                         if p.card {
-                            self.hands[owner].push(p.power);
+                            self.add_to_hand(owner, p.power, true);
                         }
                     }
                 }

@@ -1165,3 +1165,83 @@ fn random_self_play_with_every_power_on_the_flag() {
         .unwrap_or(6);
     self_play(games, 30, options);
 }
+
+// ---------------------------------------------------------------------------
+// Hidden information
+// ---------------------------------------------------------------------------
+
+/// Play random legal actions until `turns` turns have passed.
+fn random_game(seed: u64, turns: u32) -> Game {
+    let (mut g, _) = Game::new(Options {
+        seed: Some(seed),
+        ..Options::default()
+    })
+    .unwrap();
+    let mut rng = seed + 99;
+    while g.turn < turns && !matches!(g.phase, Phase::Over { .. }) {
+        let seat = g.pending.as_ref().map(|p| p.seat).unwrap_or(g.current);
+        let legal = g.legal_actions(seat);
+        let end = legal
+            .iter()
+            .position(|a| matches!(a, Action::EndTurn { .. }));
+        let pick = match end {
+            Some(i) if next_random(&mut rng).is_multiple_of(4) => i,
+            _ => (next_random(&mut rng) % legal.len() as u64) as usize,
+        };
+        g.apply(seat, &legal[pick]).unwrap();
+    }
+    g
+}
+
+#[test]
+fn faceup_takes_are_public_and_draws_are_not() {
+    let options = Options {
+        first_player: Some(0),
+        seed: Some(3),
+        ..Options::default()
+    };
+    let (mut g, _) = Game::new(options).unwrap();
+    let card = g.faceup[1];
+    g.apply(0, &Action::TakeFaceup { slot: 1 }).unwrap();
+    g.apply(1, &Action::TakeDeck).unwrap();
+    assert_eq!(g.known_hand(0), vec![card]);
+    assert!(g.known_hand(1).is_empty());
+}
+
+#[test]
+fn determinize_only_changes_what_is_hidden() {
+    for seed in 0..20 {
+        let g = random_game(seed, 6);
+        for seat in 0..2 {
+            let other = 1 - seat;
+            let d = g.determinize(seat, seed * 7 + 1);
+            assert_eq!(format!("{:?}", d.units), format!("{:?}", g.units));
+            assert_eq!(
+                (&d.faceup, &d.discard, d.scores, d.turn),
+                (&g.faceup, &g.discard, g.scores, g.turn)
+            );
+            assert_eq!(d.hands[seat], g.hands[seat], "your own hand is known");
+            assert_eq!(d.hands[other].len(), g.hands[other].len());
+            assert_eq!(d.deck.len(), g.deck.len());
+            for c in g.known_hand(other) {
+                assert!(
+                    d.hands[other].contains(&c),
+                    "cards you saw them take stay in their hand"
+                );
+            }
+            let mut before: Vec<usize> = g.deck.iter().chain(&g.hands[other]).copied().collect();
+            let mut after: Vec<usize> = d.deck.iter().chain(&d.hands[other]).copied().collect();
+            before.sort();
+            after.sort();
+            assert_eq!(before, after, "hidden cards are only shuffled around");
+            assert_eq!(
+                d.legal_actions(seat).len(),
+                g.legal_actions(seat).len(),
+                "your options don't change"
+            );
+        }
+    }
+    let g = random_game(5, 6);
+    let samples: HashSet<Vec<usize>> = (0..10).map(|s| g.determinize(0, s).deck).collect();
+    assert!(samples.len() > 1, "different seeds give different samples");
+}
