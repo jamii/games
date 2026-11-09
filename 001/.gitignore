@@ -12,3 +12,5 @@ __pycache__/
 /cards-net/*.part
 /cards-fixed-flag/*.log
 /cards-fixed-flag/*.part
+/cards-fixed-flag-net/*.log
+/cards-fixed-flag-net/*.part
