@@ -177,6 +177,7 @@ variant (`cards-fixed-flag/`):
 | Heavy | **+29.6 ± 8.7** | **+19.0 ± 9.4** | +0.0 ± 7.2 | +15 | +0.51 |
 | Trade |  | **+29.5 ± 8.8** | +1.5 ± 8.0 (stage 2 bot) | -1 | +0.02 |
 | Climb | **+20.3 ± 8.0** |  |  | -2 | +0.24 |
+| Push | **+14.6 ± 7.9** |  |  | -1 | +0.14 |
 | Remote | **+11.7 ± 6.8** |  |  | +19 | +0.65 |
 | Bully | **+9.1 ± 7.7** |  |  | -1 | -0.64 |
 | Forbid | **+8.0 ± 7.4** |  |  | -8 | -0.23 |
@@ -221,7 +222,11 @@ climbing onto an enemy next to the flag both removes it and puts your unit
 there. The rules text only says buried units can't be targeted or activated;
 "buried units don't score" is our reading (RULES_DECISIONS.md, "Units, stacks
 and home spaces"). If buried units should still count, Climb is probably
-fine. **The fix for all of them: the flag can't be moved by
+fine.
+
+Push (+14.6 ± 7.9) is strong in the ordinary way: only 8% of its uses moved
+the flag; the rest pushed enemy or other units for about +0.9 in flag lead
+each. Worth watching, not obviously broken. **The fix for all of them: the flag can't be moved by
 powers, and the *Flag* power can't be traded.**
 
 **The correlational measures are unreliable**: they rated Forbid and Bully
