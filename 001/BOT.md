@@ -159,10 +159,11 @@ variant (`cards-fixed-flag/`):
 <!-- /cards -->
 
 **Swap and Heavy are balance problems, and the cause is moving the flag.**
-In hand each is worth about +30 points (the second player's win rate goes
-from about 40% to 72%), three times any other card measured, and they're the
-stage 2 bot's top two draft picks (taken about 80% of the times they're
-offered). `examples/flag_moves.rs` shows why: the *Flag* card only limits the
+In hand each is worth about +30 points against the stage 1 bot (the second
+player's win rate goes from about 40% to 72%), three times any other card
+measured. Stronger play blunts them but doesn't fix them: with the stage 2 bot
+on both sides, Heavy is still worth +19 and Swap +12, and they're its top two
+draft picks (taken about 80% of the times they're offered). `examples/flag_moves.rs` shows why: the *Flag* card only limits the
 flag to one space per turn, so both are ways to drag the flag towards your
 own units. 68% of the bots' swaps are with the flag (gaining 1.4 in flag lead
 each), and Heavy pulls the flag at the end of the turn, gaining 2.2 in flag
