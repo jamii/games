@@ -235,6 +235,10 @@ the flag; the rest pushed enemy or other units for about +0.9 in flag lead
 each. Worth watching, not obviously broken. **The fix for all of them: the flag can't be moved by
 powers, and the *Flag* power can't be traded.**
 
+(The measure includes the value of simply having one more card; since many
+cards come out near 0, an extra card is worth little by itself, and the large
+values come from what those cards do.)
+
 **The correlational measures are unreliable**: they rated Forbid and Bully
 weak (both are among the strongest cards in hand), and Trail and Explosive
 strong (neither measurably helps). Treat them as pointers at most and use the
