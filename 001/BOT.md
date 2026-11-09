@@ -170,7 +170,7 @@ variant (`cards-fixed-flag/`):
 | card | worth in hand (points) | with the stage 2 bot | with the flag fixed | relative lift (points) | learned value (log-odds) |
 |---|---|---|---|---|---|
 | Swap | **+31.3 ± 8.1** | **+11.5 ± 8.8** | +6.8 ± 9.1 | +3 | +0.49 |
-| Pull | **+30.2 ± 8.5** |  |  | +0 | +0.42 |
+| Pull | **+30.2 ± 8.5** |  | -3.1 ± 8.0 | +0 | +0.42 |
 | Heavy | **+29.6 ± 8.7** | **+19.0 ± 9.4** | +0.0 ± 7.2 | +15 | +0.51 |
 | Trade |  | **+29.5 ± 8.8** | +1.5 ± 8.0 (stage 2 bot) | -1 | +0.02 |
 | Remote | **+11.7 ± 6.8** |  |  | +19 | +0.65 |
@@ -181,8 +181,8 @@ variant (`cards-fixed-flag/`):
 | Trail | -0.5 ± 7.2 |  |  | +17 | +0.65 |
 | Stubborn | -1.5 ± 6.4 |  |  | +16 | -0.38 |
 | Split | -2.5 ± 8.2 |  |  | -8 | +0.25 |
-| Bungee | -3.0 ± 7.6 |  |  | -13 | -0.21 |
 | Burrow |  | -3.0 ± 8.6 |  | -11 | -0.04 |
+| Bungee | -3.0 ± 7.6 |  |  | -13 | -0.21 |
 | Explosive | -4.0 ± 6.7 |  |  | +11 | +0.72 |
 <!-- /cards -->
 
@@ -208,7 +208,7 @@ the *Flag* power itself: their unit becomes the flag, which they can then
 walk towards their own units. So `--fixed-flag` also stops Trade taking the
 *Flag* power, and with that, Trade drops to +1.5 ± 8.0 with the same bot.
 **Pull is the fourth**: worth +30.2 ± 8.5 in hand, by pulling the flag into
-your unit's space. **The fix for all of them: the flag can't be moved by
+your unit's space, and −3.1 ± 8.0 with the flag fixed. **The fix for all of them: the flag can't be moved by
 powers, and the *Flag* power can't be traded.**
 
 **The correlational measures are unreliable**: they rated Forbid and Bully

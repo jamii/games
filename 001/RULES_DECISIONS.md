@@ -224,7 +224,8 @@ Tests for most of these are in `src/rules/tests.rs`.
   the end of your turn) drag it towards your units; with either card in hand a player
   wins about 30 percentage points more often (see BOT.md, "Cards"). Options: no power
   can move the flag, or only its holder can. Measured with `selfplay --fixed-flag` (no
-  power can move it): Swap drops to +7 and Heavy to 0, in line with other cards.
+  power can move it): Swap drops to +7, Heavy to 0 and *Pull* (also +30) to −3, in line
+  with other cards.
   *Trade* is the same problem by another route (worth +30 to the stronger bot): it can
   take the *Flag* power itself, making the trader's unit the flag. With the *Flag* power
   not tradeable as well (also part of `--fixed-flag`), Trade drops to +2.
