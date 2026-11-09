@@ -1,0 +1,1 @@
+[100/100] seed 800099 won by 1 (2-5 in 9 turns, 3s) | totals {"mctsN:200x4@training/net0.json": 39, "mctsN:200x4@training/net1.json": 61} | 9.7 min

@@ -1,0 +1,14 @@
+127076 samples (114728 for training, 12348 held out), read in 14s; layout {'action': 307, 'cards': 64, 'cells': 37, 'global': 721, 'unit': 223}
+model {'d': 64, 'heads': 4, 'layers': 2, 'ff': 128}, 167874 parameters, on cpu
+epoch 1: train policy 2.775 (target entropy 2.353) top-1 31.3% value 0.234 outcome 0.729 | held out policy 2.668 (entropy 2.359) top-1 48.2% value 0.207 outcome 0.720 | 24s
+epoch 2: train policy 2.594 (target entropy 2.353) top-1 52.1% value 0.106 outcome 0.486 | held out policy 2.616 (entropy 2.359) top-1 50.9% value 0.219 outcome 0.713 | 22s
+epoch 3: train policy 2.554 (target entropy 2.353) top-1 53.6% value 0.065 outcome 0.365 | held out policy 2.589 (entropy 2.359) top-1 49.9% value 0.255 outcome 0.762 | 22s
+epoch 4: train policy 2.531 (target entropy 2.353) top-1 54.9% value 0.047 outcome 0.315 | held out policy 2.568 (entropy 2.359) top-1 55.4% value 0.254 outcome 0.748 | 23s
+epoch 5: train policy 2.513 (target entropy 2.353) top-1 56.0% value 0.036 outcome 0.283 | held out policy 2.567 (entropy 2.359) top-1 52.5% value 0.269 outcome 0.787 | 22s
+epoch 6: train policy 2.499 (target entropy 2.353) top-1 56.9% value 0.029 outcome 0.265 | held out policy 2.556 (entropy 2.359) top-1 55.8% value 0.267 outcome 0.776 | 24s
+epoch 7: train policy 2.486 (target entropy 2.353) top-1 58.3% value 0.024 outcome 0.252 | held out policy 2.554 (entropy 2.359) top-1 54.2% value 0.273 outcome 0.782 | 23s
+epoch 8: train policy 2.475 (target entropy 2.353) top-1 58.8% value 0.020 outcome 0.243 | held out policy 2.556 (entropy 2.359) top-1 56.4% value 0.277 outcome 0.787 | 21s
+epoch 9: train policy 2.469 (target entropy 2.353) top-1 59.4% value 0.018 outcome 0.237 | held out policy 2.555 (entropy 2.359) top-1 56.1% value 0.280 outcome 0.791 | 22s
+epoch 10: train policy 2.465 (target entropy 2.353) top-1 59.7% value 0.017 outcome 0.235 | held out policy 2.555 (entropy 2.359) top-1 55.6% value 0.280 outcome 0.792 | 21s
+keeping epoch 6
+wrote training/net0.json

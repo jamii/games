@@ -1,0 +1,4 @@
+net0: won 74 of 100 finished games against mcts:400x4 (0 unfinished)
+net0: won 74 of 100 finished games against mcts:400x4 (0 unfinished)
+net1: won 75 of 100 finished games against mcts:400x4 (0 unfinished)
+net2: won 81 of 100 finished games against mcts:400x4 (0 unfinished)
