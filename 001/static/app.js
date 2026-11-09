@@ -24,6 +24,7 @@ const ui = {
   modal: null, // {render, handlers}
   retry: null, // forced version of the last rejected action
   refTab: 'rules',
+  origin: null, // with Remote: the friendly unit to act from
 };
 
 let drag = null;
@@ -58,11 +59,25 @@ const unitLabel = u => (u.owner !== null ? u.label : isFlagUnit(u) ? '⚑' : '')
 const unitName = u => (u.owner !== null ? `Unit ${u.label}` : isFlagUnit(u) ? 'The flag' : 'Neutral unit');
 const inHomeOf = (u, seat) => { const c = cellInfo(u.cell); return !!c && c.kind === 'home' && c.seat === seat; };
 
+// Automatic rules: the server sends the current player's legal actions, and
+// the UI only offers those.
+const auto = () => !!view && G().automatic;
+const legal = () => (view && G().legal) || [];
+const legalWhere = pred => legal().filter(pred);
+const isLegal = pred => legal().some(pred);
+const sameOrigin = (a, origin) => (a.origin ?? null) === (origin ?? null);
+const promptNow = () => (view ? G().prompt : null);
+const myPrompt = () => { const p = promptNow(); return p && p.seat === me() && p.options ? p : null; };
+const canActUnit = u => isLegal(a => (a.type === 'activate' || a.type === 'remove_power') && a.unit === u.id);
+const applyTargets = m => legalWhere(a => (m.kind === 'apply-hand'
+  ? a.type === 'apply_hand' && a.card === m.card
+  : a.type === 'apply_free' && a.power === m.power));
+
 function myTurn() {
   return !!view && me() !== null && G().current === me() && G().phase.kind !== 'over';
 }
 function canMain() {
-  return myTurn() && G().phase.kind === 'main';
+  return myTurn() && G().phase.kind === 'main' && !promptNow();
 }
 function canTake() {
   return myTurn() && (G().phase.kind === 'draft' || G().phase.kind === 'draw');
@@ -132,9 +147,12 @@ function cleanUpSelection() {
     const gone = (m.kind === 'apply-hand' && !(G().hand || []).includes(m.card))
       || (m.kind === 'apply-free' && !G().free_powers.includes(m.power))
       || (m.kind === 'move-power' && !unitById(m.unit))
+      || (auto() && m.kind !== 'move-power' && applyTargets(m).length === 0)
+      || (auto() && m.kind === 'move-power')
       || !canMain();
     if (gone) ui.mode = null;
   }
+  if (ui.origin !== null && !unitById(ui.origin)) ui.origin = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -220,6 +238,12 @@ function render() {
 
 function phaseText() {
   const g = G(), cur = seatName(g.current), mine = myTurn();
+  const prompt = promptNow();
+  if (prompt) {
+    return prompt.seat === me()
+      ? { text: prompt.text, cls: 'mode' }
+      : { text: `${seatName(prompt.seat)} is choosing: ${prompt.text}`, cls: '' };
+  }
   if (ui.mode) {
     const m = ui.mode;
     if (m.kind === 'apply-hand' || m.kind === 'apply-free') {
@@ -254,7 +278,15 @@ function renderTop() {
   const phase = phaseText();
   let buttons = '';
   if (view.can_undo) buttons += '<button data-act="undo" title="Undo your last action this turn">Undo</button>';
-  if (canMain()) buttons += '<button class="primary" data-act="end-turn">End turn</button>';
+  if (canMain() && (!auto() || isLegal(a => a.type === 'end_turn'))) {
+    buttons += '<button class="primary" data-act="end-turn">End turn</button>';
+  }
+  const rules = auto() ? 'Automatic rules' : 'Manual rules';
+  if (myTurn() && !promptNow()) {
+    buttons += `<button data-act="toggle-mode" title="Switch between automatic and manual rules">${rules} ⇄</button>`;
+  } else {
+    buttons += `<span class="tag rules-tag">${rules}</span>`;
+  }
   if (me() !== null) buttons += '<button data-act="new-game">New game</button>';
   buttons += '<button data-act="reference">Rules &amp; cards</button>';
   $('topbar').innerHTML = `
@@ -267,6 +299,7 @@ function renderTop() {
 function isTarget(u) {
   const m = ui.mode;
   if (!m) return false;
+  if (auto() && (m.kind === 'apply-hand' || m.kind === 'apply-free')) return applyTargets(m).some(a => a.unit === u.id);
   if (m.kind === 'apply-hand' || m.kind === 'apply-free') return u.owner === me() && inHomeOf(u, me());
   if (m.kind === 'move-power') return u.id !== m.unit;
   return false;
@@ -281,13 +314,20 @@ function renderBoard() {
   svg.setAttribute('viewBox', `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
 
   const spawnable = canMain() && !G().spawned_this_turn && !ui.mode;
+  const spawns = legalWhere(a => a.type === 'spawn').map(a => a.cell);
+  const choices = (myPrompt() || { options: [] }).options;
   let html = '';
   for (const c of init.board) {
     const [px, py] = toScreen(c);
     const cls = ['cell', c.kind];
     if (c.kind === 'home') cls.push(`home-${SEAT_KEYS[c.seat]}`);
     if (ui.sel && ui.sel.cell && sameCell(ui.sel.cell, c)) cls.push('selected');
-    if (spawnable && c.kind === 'home' && c.seat === me() && !topAt(c)) cls.push('spawnable');
+    if (auto()) {
+      if (spawnable && spawns.some(s => sameCell(s, c))) cls.push('spawnable');
+    } else if (spawnable && c.kind === 'home' && c.seat === me() && !topAt(c)) {
+      cls.push('spawnable');
+    }
+    if (choices.some(o => o.cell && sameCell(o.cell, c))) cls.push('choice');
     html += `<g class="${cls.join(' ')}" data-cell="${key(c)}"><polygon points="${hexPoints(px, py, 0.97)}"/>`;
     if (c.kind === 'flag') html += `<text class="cell-mark" x="${px.toFixed(3)}" y="${(py + 0.8).toFixed(3)}">F</text>`;
     html += '</g>';
@@ -319,10 +359,14 @@ function unitSvg(u, i, n) {
   if (u.activations >= u.max_activations) cls.push('spent');
   if (isTarget(u)) cls.push('target');
   if (i < n - 1) cls.push('buried');
+  const choice = (myPrompt() || { options: [] }).options.some(o => o.unit === u.id);
+  if (choice) cls.push('choice');
+  const ready = auto() && canMain() && !ui.mode && i === n - 1 && canActUnit(u);
   const label = unitLabel(u);
   let s = `<g class="${cls.join(' ')}" data-unit="${u.id}" transform="translate(${px.toFixed(3)},${py.toFixed(3)})">`;
   s += `<title>${esc(unitTooltip(u))}</title>`;
   s += `<polygon class="pointer" points="${arrowPoints(0, 0, vx, vy, 0.88, 0.45, 0.26)}"/>`;
+  if (ready) s += '<circle class="ready" r="0.72"/>';
   s += '<circle class="body" r="0.6"/>';
   s += `<text class="label" y="-0.06">${esc(label)}</text>`;
   const m = u.powers.length;
@@ -339,7 +383,23 @@ function unitTooltip(u) {
   const powers = u.powers.map(p => P(p.power).name).join(', ') || 'no powers';
   let t = `${unitName(u)}: ${powers}`;
   if (u.tokens) t += ` · ${plural(u.tokens, 'token')}`;
+  const status = statusText(u);
+  if (status) t += ` · ${status}`;
   return t;
+}
+
+// What passive powers are doing to a unit (automatic rules).
+function statusText(u) {
+  const s = u.status;
+  if (!s) return '';
+  const out = [];
+  if (s.gripped) out.push("gripped (can't move itself)");
+  if (s.jammed) out.push("jammed (can't use powers)");
+  if (s.guarded) out.push("protected (can't be killed by powers)");
+  if (s.outnumbered) out.push('outnumbered');
+  if (s.weight !== 1) out.push(`counts as ${s.weight}`);
+  s.befriended.forEach((b, seat) => { if (b) out.push(`friendly to ${seatName(seat)}`); });
+  return out.join(' · ');
 }
 
 function powerChip(p) {
@@ -364,7 +424,7 @@ function rosterHtml(seat) {
   if (me() === null && !sv.connected) {
     status += ` <button class="mini primary" data-act="claim" data-seat="${seat}">Play as ${seatName(seat)}</button>`;
   }
-  const adjust = canMain()
+  const adjust = canMain() && !auto()
     ? ` <button class="mini" data-act="score" data-seat="${seat}" data-delta="-1" title="Manual score adjustment">−</button><button class="mini" data-act="score" data-seat="${seat}" data-delta="1" title="Manual score adjustment">+</button>`
     : '';
   const first = g.first_player === seat ? '<span class="tag" title="Goes first">1st</span>' : '';
@@ -412,12 +472,15 @@ function renderHand() {
   }
   const cards = G().hand || [];
   const main = canMain();
+  const forbidden = me() !== null ? G().forbidden[me()] : [];
   const items = cards.map(c => {
     const selected = ui.mode && ui.mode.kind === 'apply-hand' && ui.mode.card === c;
+    const usable = main && (!auto() || isLegal(a => a.type === 'apply_hand' && a.card === c));
     return cardHtml(c, {
-      cls: (main ? 'clickable' : '') + (selected ? ' selected' : ''),
+      cls: (usable ? 'clickable' : '') + (selected ? ' selected' : '') + (forbidden.includes(c) ? ' forbidden' : ''),
       data: { act: 'hand', card: c },
-      buttons: selected ? `<button class="mini" data-act="discard-card" data-card="${c}">Discard</button>` : '',
+      badge: forbidden.includes(c) ? 'forbidden this turn' : '',
+      buttons: selected && !auto() ? `<button class="mini" data-act="discard-card" data-card="${c}">Discard</button>` : '',
     });
   }).join('');
   $('hand').innerHTML = `<div class="strip-title">Your hand (${cards.length})</div>
@@ -426,7 +489,7 @@ function renderHand() {
 
 function renderMarket() {
   const g = G();
-  const take = canTake(), main = canMain();
+  const take = canTake() && !promptNow(), main = canMain() && !auto();
   const faceup = g.faceup.map((c, i) => cardHtml(c, {
     cls: take ? 'clickable takeable' : main ? 'clickable' : '',
     data: { act: 'faceup', slot: i },
@@ -436,7 +499,8 @@ function renderMarket() {
   const discard = `<div class="pile" data-act="discard-pile" title="Look through the discard pile"><div class="pile-n">${g.discard.length}</div>Discard</div>`;
   const free = g.free_powers.map(p => {
     const selected = ui.mode && ui.mode.kind === 'apply-free' && ui.mode.power === p;
-    return cardHtml(p, { cls: `free${main ? ' clickable' : ''}${selected ? ' selected' : ''}`, data: { act: 'free', power: p }, free: true });
+    const usable = canMain() && (!auto() || isLegal(a => a.type === 'apply_free' && a.power === p));
+    return cardHtml(p, { cls: `free${usable ? ' clickable' : ''}${selected ? ' selected' : ''}`, data: { act: 'free', power: p }, free: true });
   }).join('');
   $('market').innerHTML = `<div class="strip-row">
     <div><div class="strip-title">Faceup</div><div class="cards">${faceup || '<span class="muted">Empty.</span>'}</div></div>
@@ -447,6 +511,8 @@ function renderMarket() {
 
 function renderInspector() {
   const el = $('inspector');
+  const prompt = myPrompt();
+  if (prompt) { el.innerHTML = promptPanel(prompt); return; }
   const s = ui.sel;
   if (s && s.unit !== undefined) {
     const u = unitById(s.unit);
@@ -454,6 +520,29 @@ function renderInspector() {
   }
   if (s && s.cell) { el.innerHTML = cellPanel(s.cell); return; }
   el.innerHTML = helpPanel();
+}
+
+// "Row 2, space 3", counted from the top left of this player's view of the board.
+function cellName(c) {
+  const ys = [...new Set(init.board.map(b => toScreen(b)[1].toFixed(2)))].map(Number).sort((a, b) => a - b);
+  const [px, py] = toScreen(c);
+  const xs = init.board.map(toScreen).filter(([, y]) => Math.abs(y - py) < 0.01).map(([x]) => x).sort((a, b) => a - b);
+  const row = ys.findIndex(y => Math.abs(y - py) < 0.01) + 1;
+  const pos = xs.findIndex(x => Math.abs(x - px) < 0.01) + 1;
+  return `Row ${row}, space ${pos}`;
+}
+
+function promptPanel(prompt) {
+  const label = o => (o.cell && o.unit === undefined ? cellName(o.cell) : o.label);
+  const options = prompt.options.map((o, i) =>
+    `<button class="choice-btn" data-act="choose" data-index="${i}" data-opt="${i}">${esc(label(o))}</button>`).join('');
+  const onBoard = prompt.options.some(o => o.cell || o.unit);
+  const cells = prompt.options.some(o => o.cell && o.unit === undefined);
+  return `<h3>Your choice</h3>
+    <p>${esc(prompt.text)}</p>
+    ${onBoard ? `<p class="hint">Pick one of the highlighted ${cells ? 'spaces' : 'units'} on the board, or a button below${cells ? ' (rows count from the top of your board, spaces from the left)' : ''}.</p>` : ''}
+    <div class="choice-list">${options}</div>
+    <div class="btn-row"><button data-act="cancel" title="Abandon this action; nothing happens">Cancel</button></div>`;
 }
 
 function helpPanel() {
@@ -469,12 +558,17 @@ const HELP = `<ul>
     <li>Click one of your empty home spaces to spawn a unit.</li>
     <li>Click a card in your hand (or a free power), then one of your units in a home space, to apply it.</li>
     <li>Click a unit to activate it: pick a facing, then use one of its active powers (or just rotate).</li>
-    <li>Power effects are carried out by hand: <b>drag units</b> to move them, and use the manual tools in this panel to kill units, move powers, add tokens and so on.</li>
-    <li>When a rule check blocks something a power allows, choose <b>Do it anyway</b>. <b>Undo</b> works until you draw or end your turn.</li>
-    <li><b>End turn</b> counts units next to the flag and offers to score.</li>
+    <li><b>Automatic rules</b> carry out every power. Only legal moves are offered: spaces you can spawn in are outlined,
+      units that can act have a dashed ring, and facing arrows with a green ring let the unit use a power.
+      When a power needs a decision, the options are highlighted.</li>
+    <li><b>Manual rules</b> leave power effects to you: <b>drag units</b> to move them, and use the manual tools in this
+      panel to kill units, move powers, add tokens and so on. When a rule check blocks something a power allows,
+      choose <b>Do it anyway</b>.</li>
+    <li>Switch between them with the rules button at the top. <b>Undo</b> works until you draw or end your turn.</li>
   </ul>`;
 
 function unitPanel(u) {
+  if (auto()) return autoUnitPanel(u);
   const main = canMain();
   const mine = u.owner === me();
   const canActivate = main && (mine || (u.owner === null && isFlagUnit(u)));
@@ -537,14 +631,80 @@ function unitPanel(u) {
   return h;
 }
 
-function facingPicker(u) {
+function unitHeader(u) {
+  const where = cellInfo(u.cell);
+  const whereText = where.kind === 'home' ? `${seatName(where.seat)} home` : where.kind === 'flag' ? 'flag space' : 'on the board';
+  const status = statusText(u);
+  let h = `<div class="insp-head">
+    <div class="token-chip ${ownerKey(u)}">${esc(unitLabel(u) || '·')}</div>
+    <div>
+      <div class="insp-title">${esc(unitName(u))}${u.owner !== null ? ` <span class="muted">(${seatName(u.owner)})</span>` : ''}</div>
+      <div class="muted small">${whereText} · activated ${u.activations}/${u.max_activations} · ${plural(u.tokens, 'token')}</div>
+      ${status ? `<div class="status small">${esc(status)}</div>` : ''}
+    </div>
+  </div>`;
+  const stack = unitsAt(u.cell);
+  if (stack.length > 1) {
+    h += `<div class="stack-nav small">Stack, bottom to top: ${stack.map(s =>
+      `<button class="mini${s.id === u.id ? ' on' : ''}" data-act="select-unit" data-unit="${s.id}">${esc(unitLabel(s) || '·')}</button>`).join(' ')}</div>`;
+  }
+  return h;
+}
+
+// With automatic rules, only legal actions are offered.
+function autoUnitPanel(u) {
+  const facing = ui.facing ?? u.facing;
+  const mine = legalWhere(a => a.unit === u.id);
+  const activations = mine.filter(a => a.type === 'activate');
+  const origins = [...new Set(activations.filter(a => a.origin != null).map(a => a.origin))];
+  const origin = origins.includes(ui.origin) ? ui.origin : null;
+  let h = unitHeader(u);
+  h += '<h4>Powers</h4>';
+  if (!u.powers.length) h += '<div class="muted">No powers.</div>';
+  u.powers.forEach((p, i) => {
+    const pw = P(p.power);
+    const use = activations.some(a => a.facing === facing && a.power === i && sameOrigin(a, origin));
+    const discard = mine.some(a => a.type === 'remove_power' && a.index === i);
+    h += `<div class="power ${pw.kind}${p.card ? '' : ' free'}">
+      <div class="power-head"><b>${esc(pw.name)}</b> <span class="kind">${esc(pw.kind)}${p.card ? '' : ' · free'}</span></div>
+      <div class="power-text">${md(pw.text)}</div>`;
+    if (use || discard || (pw.kind === 'active' && activations.length)) {
+      h += '<div class="power-btns">';
+      if (pw.kind === 'active' && activations.length) {
+        h += use
+          ? `<button class="primary mini" data-act="use" data-index="${i}">Activate &amp; use</button>`
+          : `<button class="mini" disabled title="Can't be used facing this way${origin !== null ? ' from there' : ''}">Can't use this way</button>`;
+      }
+      if (discard) h += `<button class="mini" data-act="remove-power" data-index="${i}">Discard</button>`;
+      h += '</div>';
+    }
+    h += '</div>';
+  });
+  if (activations.length) {
+    const rotate = activations.some(a => a.facing === facing && a.power === null);
+    h += `<div class="section"><h4>Activate</h4><div class="activate-row">${facingPicker(u, activations)}
+      <div><div class="hint">Choose a facing (arrows with a green ring let it use a power), then <b>Activate &amp; use</b> a power above, or:</div>
+      <div class="btn-row"><button data-act="activate"${rotate ? '' : ' disabled'}>Activate (rotate only)</button></div></div></div>`;
+    if (origins.length) {
+      const btn = (id, label) => `<button class="mini${origin === id ? ' on' : ''}" data-act="origin" data-origin="${id === null ? 'null' : id}">${esc(label)}</button>`;
+      h += `<div class="btn-row small">Remote, act from: ${btn(null, 'here')}${origins.map(o => btn(o, unitLabel(unitById(o)) || '?')).join('')}</div>`;
+    }
+    h += '</div>';
+  } else if (u.owner === me() && canMain()) {
+    h += `<div class="hint">${u.activations >= u.max_activations ? 'Already activated this turn.' : 'It can\'t be activated now.'}</div>`;
+  }
+  return h;
+}
+
+function facingPicker(u, activations = null) {
   const chosen = ui.facing ?? u.facing;
   let s = '<svg class="facing" viewBox="-1.65 -1.65 3.3 3.3">';
   s += `<circle class="fp-body ${ownerKey(u)}" r="0.55"/><text class="fp-label">${esc(unitLabel(u))}</text>`;
   for (let f = 0; f < 6; f++) {
     const [vx, vy] = dirVec(f);
     const cx = vx * 1.18, cy = vy * 1.18;
-    const cls = f === chosen ? 'chosen' : f === u.facing ? 'current' : '';
+    let cls = f === chosen ? 'chosen' : f === u.facing ? 'current' : '';
+    if (activations && activations.some(a => a.facing === f && a.power !== null)) cls += ' usable';
     s += `<g class="fp-dir ${cls}" data-act="facing" data-facing="${f}">
       <title>${f === u.facing ? 'Current facing' : 'Face this way'}</title>
       <circle cx="${cx.toFixed(3)}" cy="${cy.toFixed(3)}" r="0.4"/>
@@ -558,6 +718,14 @@ function cellPanel(c) {
   const title = info.kind === 'home' ? `${seatName(info.seat)} home space` : info.kind === 'flag' ? 'Flag space (F)' : 'Empty space';
   let h = `<h3>${title}</h3>`;
   if (!canMain()) return h + '<div class="muted">Nothing here.</div>';
+  if (auto()) {
+    if (isLegal(a => a.type === 'spawn' && sameCell(a.cell, c))) {
+      h += `<div class="btn-row"><button class="primary" data-act="spawn">Spawn a unit here</button></div>`;
+    } else if (info.kind === 'home' && info.seat === me()) {
+      h += `<div class="hint">${G().spawned_this_turn ? 'You have already spawned a unit this turn.' : "You can't spawn a unit here."}</div>`;
+    }
+    return h;
+  }
   if (info.kind === 'home' && info.seat === me()) {
     h += `<div class="btn-row"><button class="primary" data-act="spawn">Spawn a unit here</button></div>`;
     if (G().spawned_this_turn) h += '<div class="hint">You have already spawned a unit this turn.</div>';
@@ -614,9 +782,9 @@ function hideToast() {
   ui.retry = null;
 }
 
-function choosePower(u, title, intro, onChoose) {
-  const buttons = u.powers.map((p, i) =>
-    `<button data-modal="choose" data-index="${i}"><b>${esc(P(p.power).name)}</b> — <span class="muted">${md(P(p.power).text)}</span></button>`).join('');
+function choosePower(u, title, intro, onChoose, allowed = null) {
+  const buttons = u.powers.map((p, i) => (allowed && !allowed.includes(i) ? ''
+    : `<button data-modal="choose" data-index="${i}"><b>${esc(P(p.power).name)}</b> — <span class="muted">${md(P(p.power).text)}</span></button>`)).join('');
   openModal(`<h2>${esc(title)}</h2><p>${intro}</p><div class="choice-list">${buttons}</div>
     <div class="modal-actions"><button data-modal="close">Cancel</button></div>`,
   { choose: d => { closeModal(); onChoose(+d.index); } });
@@ -628,9 +796,10 @@ function applyToUnit(m, u) {
     : { type: 'apply_free', power: m.power, unit: u.id, replace });
   const name = P(m.kind === 'apply-hand' ? m.card : m.power).name;
   if (u.powers.length >= init.max_powers) {
+    const allowed = auto() ? applyTargets(m).filter(a => a.unit === u.id).map(a => a.replace) : null;
     choosePower(u, `Replace a power on ${unitName(u)}`,
       `${esc(unitName(u))} already has ${init.max_powers} powers. Which one should ${esc(name)} replace? (Replaced cards are discarded.)`,
-      i => act(build(i)));
+      i => act(build(i)), allowed);
   } else {
     act(build(null));
   }
@@ -654,6 +823,7 @@ function openMovePower(fromId, index, toId) {
 }
 
 function openEndTurn() {
+  if (auto()) return openAutoEndTurn();
   const g = G(), mine = g.flag_counts[me()], theirs = g.flag_counts[1 - me()];
   const scores = mine > theirs;
   const reminders = g.units
@@ -672,6 +842,22 @@ function openEndTurn() {
   { end: d => { closeModal(); act({ type: 'end_turn', score: d.score === '1' }); } });
 }
 
+function openAutoEndTurn() {
+  const g = G(), mine = g.flag_counts[me()], theirs = g.flag_counts[1 - me()];
+  const effects = g.units
+    .filter(u => u.owner === me() || u.owner === null)
+    .flatMap(u => u.powers.filter(p => /end of your turn/i.test(P(p.power).text)).map(p => `${P(p.power).name} (${unitLabel(u) || 'neutral'})`));
+  openModal(`<h2>End your turn</h2>
+    ${effects.length ? `<p>First these end-of-turn powers happen: <b>${esc(effects.join(', '))}</b>.</p>` : ''}
+    <p>Units next to the flag now: <b>you ${mine}</b>, <b>${seatName(1 - me())} ${theirs}</b>.
+    ${effects.length ? 'If that is still true after them, ' : ''}${mine > theirs ? 'you score a point.' : "you don't score."}</p>
+    <div class="modal-actions">
+      <button data-modal="close">Cancel</button>
+      <button class="primary" data-modal="end">End turn</button>
+    </div>`,
+  { end: () => { closeModal(); act({ type: 'end_turn', score: false }); } });
+}
+
 function openNewGame() {
   const opts = G().options;
   const powerOptions = init.powers
@@ -682,6 +868,9 @@ function openNewGame() {
     .join('');
   openModal(`<h2>New game</h2>
     <p class="muted">This ends the current game for both players.</p>
+    <div class="form-row"><label for="ng-rules">Rules</label>
+      <select id="ng-rules"><option value="auto"${opts.automatic ? ' selected' : ''}>Automatic: powers are carried out, only legal moves</option>
+      <option value="manual"${opts.automatic ? '' : ' selected'}>Manual: players carry out powers</option></select></div>
     <div class="form-row"><label for="ng-first">First player</label>
       <select id="ng-first"><option value="">Random</option><option value="0">${seatName(0)}</option><option value="1">${seatName(1)}</option></select></div>
     <div class="form-row"><label for="ng-free">Free power (X)</label><select id="ng-free">${powerOptions}</select></div>
@@ -702,6 +891,7 @@ function openNewGame() {
         skip_first_draw: $('ng-skip').checked,
         target_score: Math.max(1, +$('ng-target').value || 5),
         second_player_points: Math.max(0, +$('ng-bonus').value || 0),
+        automatic: $('ng-rules').value === 'auto',
       };
       closeModal();
       ui.sel = null;
@@ -739,6 +929,7 @@ function openDiscardPile() {
 function select(sel) {
   ui.sel = sel;
   ui.facing = null;
+  ui.origin = null;
   render();
 }
 
@@ -752,6 +943,13 @@ function boardClick(target) {
   let unit = ug ? unitById(+ug.dataset.unit) : null;
   const cell = unit ? unit.cell : cg ? parseKey(cg.dataset.cell) : null;
   if (!unit && cell) unit = topAt(cell);
+  const prompt = myPrompt();
+  if (prompt) {
+    // Answer the prompt by clicking a highlighted unit or space.
+    let index = unit ? prompt.options.findIndex(o => o.unit === unit.id) : -1;
+    if (index < 0 && cell) index = prompt.options.findIndex(o => o.cell && sameCell(o.cell, cell));
+    if (index >= 0) { act({ type: 'choose', index }); return; }
+  }
   if (ui.mode) {
     if (unit) targetUnit(unit);
     else { ui.mode = null; render(); }
@@ -788,7 +986,7 @@ function setupBoard() {
     drag = { target: e.target, id: ug ? +ug.dataset.unit : null, g: ug, x0: e.clientX, y0: e.clientY, moved: false, done: false, pointer: e.pointerId };
   });
   svg.addEventListener('pointermove', e => {
-    if (!drag || drag.done || drag.id === null || !canMain() || ui.mode) return;
+    if (!drag || drag.done || drag.id === null || !canMain() || ui.mode || auto()) return;
     if (!drag.moved) {
       if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) return;
       drag.moved = true;
@@ -838,6 +1036,16 @@ function handleAct(a, d) {
     case 'leave': send({ type: 'leave' }); break;
     case 'undo': send({ type: 'undo' }); break;
     case 'end-turn': openEndTurn(); break;
+    case 'toggle-mode':
+      if (confirm(auto()
+        ? 'Switch to manual rules? Powers will no longer be carried out for you.'
+        : 'Switch to automatic rules? Powers will be carried out and only legal moves allowed.')) {
+        act({ type: 'set_mode', automatic: !auto() });
+      }
+      break;
+    case 'choose': act({ type: 'choose', index: +d.index }); break;
+    case 'cancel': act({ type: 'cancel' }); break;
+    case 'origin': ui.origin = d.origin === 'null' ? null : +d.origin; render(); break;
     case 'new-game': openNewGame(); break;
     case 'reference': openReference(); break;
     case 'retry': if (ui.retry) send({ type: 'action', action: ui.retry }); hideToast(); break;
@@ -846,12 +1054,12 @@ function handleAct(a, d) {
     case 'select-unit': select({ unit: +d.unit }); break;
 
     case 'hand':
-      if (!canMain()) break;
+      if (!canMain() || (auto() && !isLegal(a => a.type === 'apply_hand' && a.card === +d.card))) break;
       ui.mode = ui.mode && ui.mode.kind === 'apply-hand' && ui.mode.card === +d.card ? null : { kind: 'apply-hand', card: +d.card };
       render();
       break;
     case 'free':
-      if (!canMain()) break;
+      if (!canMain() || (auto() && !isLegal(a => a.type === 'apply_free' && a.power === +d.power))) break;
       ui.mode = ui.mode && ui.mode.kind === 'apply-free' && ui.mode.power === +d.power ? null : { kind: 'apply-free', power: +d.power };
       render();
       break;
@@ -860,19 +1068,19 @@ function handleAct(a, d) {
       act({ type: 'discard_card', card: +d.card });
       break;
     case 'faceup':
-      if (canTake() || (canMain() && confirm(`Take ${P(G().faceup[+d.slot]).name} from the faceup row as a manual draw (eg for Mine)? This can't be undone.`))) {
+      if (canTake() || (canMain() && !auto() && confirm(`Take ${P(G().faceup[+d.slot]).name} from the faceup row as a manual draw (eg for Mine)? This can't be undone.`))) {
         act({ type: 'take_faceup', slot: +d.slot });
       }
       break;
     case 'deck':
-      if (canTake() || (canMain() && confirm('Draw the top card of the deck as a manual draw (eg for Mine)? This can\'t be undone.'))) {
+      if (canTake() || (canMain() && !auto() && confirm('Draw the top card of the deck as a manual draw (eg for Mine)? This can\'t be undone.'))) {
         act({ type: 'take_deck' });
       }
       break;
     case 'discard-pile': openDiscardPile(); break;
 
     case 'facing': ui.facing = +d.facing; render(); break;
-    case 'use': if (u) act({ type: 'activate', unit: u.id, facing: ui.facing ?? u.facing, power: +d.index }); break;
+    case 'use': if (u) act({ type: 'activate', unit: u.id, facing: ui.facing ?? u.facing, power: +d.index, origin: auto() ? ui.origin : null }); break;
     case 'activate': if (u) act({ type: 'activate', unit: u.id, facing: ui.facing ?? u.facing, power: null }); break;
     case 'remove-power': if (u) act({ type: 'remove_power', unit: u.id, index: +d.index, to_hand: false }); break;
     case 'power-to-hand': if (u) act({ type: 'remove_power', unit: u.id, index: +d.index, to_hand: true }); break;
@@ -897,6 +1105,17 @@ document.addEventListener('click', e => {
   const t = e.target.closest('[data-act]');
   if (!t || t.closest('#board') || !view) return;
   handleAct(t.dataset.act, t.dataset);
+});
+
+document.addEventListener('mouseover', e => {
+  const b = e.target.closest('[data-opt]');
+  document.querySelectorAll('#board .hover').forEach(n => n.classList.remove('hover'));
+  const prompt = myPrompt();
+  if (!b || !prompt) return;
+  const o = prompt.options[+b.dataset.opt];
+  if (!o) return;
+  const sel = o.unit !== undefined ? `[data-unit="${o.unit}"]` : o.cell ? `[data-cell="${key(o.cell)}"]` : null;
+  if (sel) { const n = document.querySelector(`#board ${sel}`); if (n) n.classList.add('hover'); }
 });
 
 document.addEventListener('keydown', e => {

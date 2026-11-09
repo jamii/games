@@ -1,17 +1,19 @@
-//! Game state and rule bookkeeping.
+//! Game state, and the manual rules.
 //!
-//! The server automates the parts of the rules that are pure bookkeeping (the
-//! draft, drawing, the faceup row, spawning, applying powers, activation
-//! limits, the flag, scoring) and checks the structural rules. Power effects
-//! are resolved by the current player with the "manual" actions (move, kill,
-//! move powers, ...), because the power rules are still being playtested.
+//! A game is played with automatic or manual rules (players can switch between
+//! them). The automatic rules live in `rules.rs`: they carry out every power and
+//! only allow legal actions.
 //!
-//! Structural checks that powers can legitimately bend are "soft": the client
-//! can resend the action with `force: true` to override them.
+//! With manual rules, the server automates the parts of the rules that are pure
+//! bookkeeping (the draft, drawing, the faceup row, spawning, applying powers,
+//! activation limits, the flag, scoring) and checks the structural rules. Power
+//! effects are carried out by the current player with the "manual" actions
+//! (move, kill, move powers, ...). Structural checks that powers can
+//! legitimately bend are "soft": the client can resend the action with
+//! `force: true` to override them.
 
 use crate::data::{Cell, CellKind, Kind, Seat, data};
-use rand::Rng;
-use rand::seq::SliceRandom;
+use crate::rules::Pending;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::HashSet;
@@ -23,11 +25,11 @@ pub const FACEUP_SLOTS: usize = 6;
 pub const DRAFT_CARDS: usize = 3;
 pub const DRAWS_PER_TURN: u32 = 2;
 
-fn power_name(power: usize) -> &'static str {
+pub(crate) fn power_name(power: usize) -> &'static str {
     &data().powers[power].name
 }
 
-fn cap(text: String) -> String {
+pub(crate) fn cap(text: String) -> String {
     let mut chars = text.chars();
     match chars.next() {
         Some(first) => first.to_uppercase().chain(chars).collect(),
@@ -36,7 +38,7 @@ fn cap(text: String) -> String {
 }
 
 /// "Letters'" rather than "Letters's".
-fn possessive(name: &str) -> String {
+pub(crate) fn possessive(name: &str) -> String {
     if name.ends_with('s') {
         format!("{name}'")
     } else {
@@ -48,7 +50,7 @@ fn overridden(force: bool) -> &'static str {
     if force { " (rules overridden)" } else { "" }
 }
 
-fn plural(n: u32, word: &str) -> String {
+pub(crate) fn plural(n: u32, word: &str) -> String {
     if n == 1 {
         format!("{n} {word}")
     } else {
@@ -57,11 +59,11 @@ fn plural(n: u32, word: &str) -> String {
 }
 
 /// Units start facing the opposite side of the board.
-fn default_facing(seat: Seat) -> usize {
+pub(crate) fn default_facing(seat: Seat) -> usize {
     if seat == 0 { 2 } else { 5 }
 }
 
-fn turn_text(from: usize, to: usize) -> Option<&'static str> {
+pub(crate) fn turn_text(from: usize, to: usize) -> Option<&'static str> {
     match (to + 6 - from) % 6 {
         1 => Some("60° clockwise"),
         2 => Some("120° clockwise"),
@@ -93,10 +95,12 @@ pub struct Unit {
     pub activations: u32,
     /// Stacking order: the unit with the highest `z` in a space is on top.
     pub z: u32,
+    /// How many spaces the unit has moved this turn (for the *Flag* power).
+    pub moved: u32,
 }
 
 impl Unit {
-    fn count(&self, power: Option<usize>) -> u32 {
+    pub(crate) fn count(&self, power: Option<usize>) -> u32 {
         power.map_or(0, |power| {
             self.powers.iter().filter(|p| p.power == power).count() as u32
         })
@@ -118,6 +122,8 @@ impl Unit {
 
     pub fn name(&self) -> String {
         match self.owner {
+            // A sixth unit, until its owner decides which unit dies.
+            Some(_) if self.label == "+" => "the new unit".into(),
             Some(_) => self.label.clone(),
             None if self.is_flag() => "the flag".into(),
             None => "a neutral unit".into(),
@@ -146,6 +152,17 @@ pub struct Options {
     pub target_score: u32,
     #[serde(default = "default_second_player_points")]
     pub second_player_points: u32,
+    /// Automatic rules (every power is carried out and only legal actions are
+    /// allowed) or manual rules (players carry out powers themselves).
+    #[serde(default = "default_automatic")]
+    pub automatic: bool,
+    /// Seed for shuffling. None picks one at random.
+    #[serde(default)]
+    pub seed: Option<u64>,
+}
+
+fn default_automatic() -> bool {
+    true
 }
 
 fn default_target_score() -> u32 {
@@ -166,6 +183,8 @@ impl Default for Options {
             skip_first_draw: false,
             target_score: default_target_score(),
             second_player_points: default_second_player_points(),
+            automatic: default_automatic(),
+            seed: None,
         }
     }
 }
@@ -220,6 +239,9 @@ pub enum Action {
         unit: u32,
         facing: usize,
         power: Option<usize>,
+        /// With *Remote*: use the power from the space of this friendly unit.
+        #[serde(default)]
+        origin: Option<u32>,
         #[serde(default)]
         force: bool,
     },
@@ -233,7 +255,10 @@ pub enum Action {
         #[serde(default)]
         force: bool,
     },
+    /// With manual rules, `score` says whether the player scores. With
+    /// automatic rules, scoring is worked out and `score` is ignored.
     EndTurn {
+        #[serde(default)]
         score: bool,
     },
 
@@ -280,6 +305,16 @@ pub enum Action {
         seat: Seat,
         delta: i32,
     },
+
+    // Automatic rules: answer the current prompt, or abandon the action it belongs to.
+    Choose {
+        index: usize,
+    },
+    Cancel,
+    /// Switch between automatic and manual rules.
+    SetMode {
+        automatic: bool,
+    },
 }
 
 impl Action {
@@ -302,14 +337,14 @@ pub struct ActionError {
 
 type Result<T> = std::result::Result<T, ActionError>;
 
-fn hard(message: impl Into<String>) -> ActionError {
+pub(crate) fn hard(message: impl Into<String>) -> ActionError {
     ActionError {
         message: message.into(),
         forceable: false,
     }
 }
 
-fn check(ok: bool, force: bool, message: &str) -> Result<()> {
+pub(crate) fn check(ok: bool, force: bool, message: &str) -> Result<()> {
     if ok || force {
         Ok(())
     } else {
@@ -337,8 +372,37 @@ pub struct Game {
     pub faceup: Vec<usize>,
     pub free_powers: Vec<usize>,
     pub spawned_this_turn: bool,
-    next_id: u32,
-    next_z: u32,
+    pub(crate) next_id: u32,
+    pub(crate) next_z: u32,
+    /// Automatic or manual rules.
+    pub automatic: bool,
+    /// With automatic rules: an action waiting for the current player to answer a prompt.
+    pub pending: Option<Box<Pending>>,
+    /// Shuffling is deterministic given the seed, so actions can be replayed exactly.
+    pub(crate) rng: u64,
+    /// How many cards have been drawn from the deck (drawing can't be undone).
+    pub draws: u64,
+    /// Powers each player can't apply or activate this turn (*Forbid*).
+    pub forbidden: [Vec<usize>; 2],
+    /// (victim's owner, killer) for each kill this turn and last turn (*Vengeance*).
+    pub(crate) kills_this_turn: Vec<(Seat, u32)>,
+    pub(crate) kills_last_turn: Vec<(Seat, u32)>,
+}
+
+/// splitmix64.
+pub(crate) fn next_random(state: &mut u64) -> u64 {
+    *state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
+    let mut z = *state;
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    z ^ (z >> 31)
+}
+
+fn shuffle(cards: &mut [usize], state: &mut u64) {
+    for i in (1..cards.len()).rev() {
+        let j = (next_random(state) % (i as u64 + 1)) as usize;
+        cards.swap(i, j);
+    }
 }
 
 impl Game {
@@ -355,14 +419,14 @@ impl Game {
             return Err("Unknown first player.".into());
         }
 
-        let mut rng = rand::rng();
+        let mut rng = options.seed.unwrap_or_else(rand::random);
         let first = options
             .first_player
-            .unwrap_or_else(|| rng.random_range(0..2));
+            .unwrap_or_else(|| (next_random(&mut rng) % 2) as Seat);
         let mut deck: Vec<usize> = (0..d.powers.len())
             .filter(|&p| p != d.flag && p != free)
             .collect();
-        deck.shuffle(&mut rng);
+        shuffle(&mut deck, &mut rng);
 
         let mut game = Game {
             options: options.clone(),
@@ -380,11 +444,23 @@ impl Game {
             spawned_this_turn: false,
             next_id: 1,
             next_z: 1,
+            automatic: options.automatic,
+            pending: None,
+            rng,
+            draws: 0,
+            forbidden: [Vec::new(), Vec::new()],
+            kills_this_turn: Vec::new(),
+            kills_last_turn: Vec::new(),
         };
         game.scores[1 - first] = options.second_player_points;
 
         let mut log = vec![format!(
-            "New game. {} goes first. Free power: {}.",
+            "New game with {} rules. {} goes first. Free power: {}.",
+            if options.automatic {
+                "automatic"
+            } else {
+                "manual"
+            },
             SEAT_NAMES[first],
             power_name(free)
         )];
@@ -416,6 +492,15 @@ impl Game {
     /// Applies an action atomically: on error the game is left unchanged.
     /// Returns log lines describing what happened.
     pub fn apply(&mut self, seat: Seat, action: &Action) -> Result<Vec<String>> {
+        if let Action::SetMode { automatic } = *action {
+            return self.set_mode(seat, automatic);
+        }
+        if self.automatic {
+            return self.auto_apply(seat, action);
+        }
+        if matches!(action, Action::Choose { .. } | Action::Cancel) {
+            return Err(hard("There's nothing to choose with manual rules."));
+        }
         let mut next = self.clone();
         let mut log = Vec::new();
         next.apply_inner(seat, action, &mut log)?;
@@ -424,7 +509,30 @@ impl Game {
         Ok(log)
     }
 
-    fn apply_inner(&mut self, seat: Seat, action: &Action, log: &mut Vec<String>) -> Result<()> {
+    fn set_mode(&mut self, seat: Seat, automatic: bool) -> Result<Vec<String>> {
+        if seat != self.current {
+            return Err(hard("Only the current player can change the rules."));
+        }
+        if self.pending.is_some() {
+            return Err(hard("Answer the current question first."));
+        }
+        if self.automatic == automatic {
+            return Err(hard("Those rules are already in use."));
+        }
+        self.automatic = automatic;
+        Ok(vec![format!(
+            "{} switched to {} rules.",
+            SEAT_NAMES[seat],
+            if automatic { "automatic" } else { "manual" }
+        )])
+    }
+
+    pub(crate) fn apply_inner(
+        &mut self,
+        seat: Seat,
+        action: &Action,
+        log: &mut Vec<String>,
+    ) -> Result<()> {
         let d = data();
         let me = SEAT_NAMES[seat];
         if matches!(self.phase, Phase::Over { .. }) {
@@ -569,6 +677,7 @@ impl Game {
                 facing,
                 power,
                 force,
+                ..
             } => {
                 self.require_main()?;
                 if facing >= 6 {
@@ -887,6 +996,10 @@ impl Game {
                 ));
             }
 
+            Action::Choose { .. } | Action::Cancel | Action::SetMode { .. } => {
+                return Err(hard("That isn't a manual action."));
+            }
+
             Action::AdjustScore {
                 seat: target,
                 delta,
@@ -937,12 +1050,14 @@ impl Game {
         )
     }
 
-    fn begin_turn(&mut self, log: &mut Vec<String>) {
+    pub(crate) fn begin_turn(&mut self, log: &mut Vec<String>) {
         self.turn += 1;
         self.spawned_this_turn = false;
         for unit in &mut self.units {
             unit.activations = 0;
+            unit.moved = 0;
         }
+        self.kills_last_turn = std::mem::take(&mut self.kills_this_turn);
         log.push(format!("Turn {}: {}.", self.turn, SEAT_NAMES[self.current]));
         if !self.faceup.is_empty() {
             let card = self.faceup.remove(0);
@@ -963,7 +1078,7 @@ impl Game {
         };
     }
 
-    fn after_take(&mut self, seat: Seat, log: &mut Vec<String>) {
+    pub(crate) fn after_take(&mut self, seat: Seat, log: &mut Vec<String>) {
         match self.phase {
             Phase::Draft => {
                 if self.hands.iter().all(|hand| hand.len() >= DRAFT_CARDS) || !self.can_draw() {
@@ -986,17 +1101,21 @@ impl Game {
         }
     }
 
-    fn can_draw(&self) -> bool {
+    pub(crate) fn can_draw(&self) -> bool {
         !self.deck.is_empty() || !self.discard.is_empty() || !self.faceup.is_empty()
     }
 
-    fn draw_card(&mut self, log: &mut Vec<String>) -> Option<usize> {
+    pub(crate) fn draw_card(&mut self, log: &mut Vec<String>) -> Option<usize> {
         if self.deck.is_empty() && !self.discard.is_empty() {
             self.deck = std::mem::take(&mut self.discard);
-            self.deck.shuffle(&mut rand::rng());
+            shuffle(&mut self.deck, &mut self.rng);
             log.push("The deck ran out, so the discard pile was shuffled into a new deck.".into());
         }
-        self.deck.pop()
+        let card = self.deck.pop();
+        if card.is_some() {
+            self.draws += 1;
+        }
+        card
     }
 
     fn refill_faceup(&mut self, log: &mut Vec<String>) {
@@ -1026,7 +1145,7 @@ impl Game {
         self.units_at(self.units[index].cell).last() == Some(&index)
     }
 
-    fn free_label(&self, seat: Seat) -> Option<&'static str> {
+    pub(crate) fn free_label(&self, seat: Seat) -> Option<&'static str> {
         LABELS[seat].into_iter().find(|label| {
             !self
                 .units
@@ -1035,16 +1154,16 @@ impl Game {
         })
     }
 
-    fn bump_z(&mut self) -> u32 {
+    pub(crate) fn bump_z(&mut self) -> u32 {
         self.next_z += 1;
         self.next_z
     }
 
-    fn sort_units(&mut self) {
+    pub(crate) fn sort_units(&mut self) {
         self.units.sort_by_key(|u| u.z);
     }
 
-    fn add_unit(
+    pub(crate) fn add_unit(
         &mut self,
         owner: Option<Seat>,
         cell: Cell,
@@ -1066,6 +1185,7 @@ impl Game {
             tokens: 0,
             activations: 0,
             z,
+            moved: 0,
         });
         self.next_id += 1;
         self.units.len() - 1
@@ -1170,34 +1290,62 @@ impl Game {
     }
 
     /// What a player is allowed to see: everything except the deck order and
-    /// the other player's hand.
+    /// the other player's hand. While a prompt is waiting, the board is shown as
+    /// it is at the moment of the question, and only the deciding player sees
+    /// the options. With automatic rules, the current player also gets their
+    /// legal actions.
     pub fn view(&self, seat: Option<Seat>) -> Value {
-        let units: Vec<Value> = self
+        let shown = self.pending.as_ref().map(|p| &*p.preview).unwrap_or(self);
+        let statuses = self.automatic.then(|| shown.statuses());
+        let units: Vec<Value> = shown
             .units
             .iter()
             .map(|u| {
                 let mut value = serde_json::to_value(u).expect("units serialize");
                 value["max_activations"] = json!(u.max_activations());
+                if let Some(status) = statuses.as_ref().and_then(|s| s.get(&u.id)) {
+                    value["status"] = json!(status);
+                }
                 value
             })
             .collect();
+        let prompt = self.pending.as_ref().map(|p| {
+            if Some(p.seat) == seat {
+                json!({ "seat": p.seat, "text": p.prompt.text, "options": p.prompt.options })
+            } else {
+                json!({ "seat": p.seat, "text": p.prompt.text })
+            }
+        });
+        let legal = match seat {
+            Some(s) if self.automatic => self.legal_actions(s),
+            _ => Vec::new(),
+        };
+        let flag_counts = if self.automatic {
+            shown.auto_flag_counts()
+        } else {
+            shown.flag_counts()
+        };
         json!({
-            "phase": self.phase,
-            "current": self.current,
-            "first_player": self.first_player,
-            "turn": self.turn,
-            "scores": self.scores,
-            "target_score": self.options.target_score,
+            "automatic": self.automatic,
+            "phase": shown.phase,
+            "current": shown.current,
+            "first_player": shown.first_player,
+            "turn": shown.turn,
+            "scores": shown.scores,
+            "target_score": shown.options.target_score,
             "units": units,
-            "hand": seat.map(|s| &self.hands[s]),
-            "hand_counts": [self.hands[0].len(), self.hands[1].len()],
-            "deck_count": self.deck.len(),
-            "discard": self.discard,
-            "faceup": self.faceup,
-            "free_powers": self.free_powers,
-            "spawned_this_turn": self.spawned_this_turn,
-            "flag_counts": self.flag_counts(),
-            "options": self.options,
+            "hand": seat.map(|s| &shown.hands[s]),
+            "hand_counts": [shown.hands[0].len(), shown.hands[1].len()],
+            "deck_count": shown.deck.len(),
+            "discard": shown.discard,
+            "faceup": shown.faceup,
+            "free_powers": shown.free_powers,
+            "spawned_this_turn": shown.spawned_this_turn,
+            "flag_counts": flag_counts,
+            "forbidden": shown.forbidden,
+            "options": shown.options,
+            "prompt": prompt,
+            "legal": legal,
         })
     }
 }
@@ -1224,6 +1372,7 @@ mod tests {
     fn started() -> Game {
         let options = Options {
             first_player: Some(0),
+            automatic: false,
             ..Options::default()
         };
         let (mut game, _) = Game::new(options).unwrap();
@@ -1268,6 +1417,7 @@ mod tests {
         let d = data();
         let (game, _) = Game::new(Options {
             first_player: Some(1),
+            automatic: false,
             ..Options::default()
         })
         .unwrap();
@@ -1284,6 +1434,7 @@ mod tests {
     fn draft_and_turn_start() {
         let options = Options {
             first_player: Some(0),
+            automatic: false,
             ..Options::default()
         };
         let (mut game, _) = Game::new(options).unwrap();
@@ -1320,6 +1471,7 @@ mod tests {
         let options = Options {
             first_player: Some(1),
             skip_first_draw: true,
+            automatic: false,
             ..Options::default()
         };
         let (mut game, _) = Game::new(options).unwrap();
@@ -1493,6 +1645,7 @@ mod tests {
                 unit,
                 facing: 4,
                 power: Some(0),
+                origin: None,
                 force: false,
             },
         )
@@ -1501,6 +1654,7 @@ mod tests {
             unit,
             facing: 4,
             power: None,
+            origin: None,
             force: false,
         };
         assert!(game.apply(0, &again).unwrap_err().forceable);
@@ -1538,6 +1692,7 @@ mod tests {
             unit,
             facing: 0,
             power: Some(0),
+            origin: None,
             force: false,
         };
         assert!(game.apply(0, &use_fast).unwrap_err().forceable);

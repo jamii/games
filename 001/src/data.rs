@@ -182,9 +182,131 @@ pub fn parse_powers(md: &str) -> Result<Vec<Power>, String> {
     Ok(powers)
 }
 
+/// Every power the automatic rules know how to carry out, matched to the cards in
+/// powers.md by name (ignoring case and punctuation). A card whose name isn't
+/// here has no automatic effect.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Effect {
+    Flag,
+    Walk,
+    Run,
+    Push,
+    Pull,
+    Swap,
+    Lift,
+    Jump,
+    Climb,
+    Catapult,
+    Bungee,
+    Circle,
+    Rush,
+    Burrow,
+    Leader,
+    Heavy,
+    Stinky,
+    Trade,
+    Stun,
+    Trigger,
+    Mystery,
+    Fast,
+    Reach,
+    Spin,
+    Beam,
+    Chain,
+    Halo,
+    Colorblind,
+    Liability,
+    Bully,
+    Stalker,
+    Spotlight,
+    Vengeance,
+    SixShooter,
+    Bridge,
+    Telepath,
+    Dogpile,
+    Backstab,
+    ClickClick,
+    Neutralize,
+    Explosive,
+    Spiky,
+    Banish,
+    Split,
+    Trail,
+    Convert,
+    Pacifist,
+    Recycle,
+    Mine,
+    Vacuum,
+    Nuke,
+    Strong,
+    Weak,
+    Grip,
+    Jammer,
+    Forbid,
+    Phoenix,
+    Recall,
+    Stubborn,
+    Possess,
+    Lifeguard,
+    Friendly,
+    Twitchy,
+    Remote,
+}
+
+impl Effect {
+    pub const ALL: [Effect; 64] = {
+        use Effect::*;
+        [
+            Flag, Walk, Run, Push, Pull, Swap, Lift, Jump, Climb, Catapult, Bungee, Circle, Rush,
+            Burrow, Leader, Heavy, Stinky, Trade, Stun, Trigger, Mystery, Fast, Reach, Spin, Beam,
+            Chain, Halo, Colorblind, Liability, Bully, Stalker, Spotlight, Vengeance, SixShooter,
+            Bridge, Telepath, Dogpile, Backstab, ClickClick, Neutralize, Explosive, Spiky, Banish,
+            Split, Trail, Convert, Pacifist, Recycle, Mine, Vacuum, Nuke, Strong, Weak, Grip,
+            Jammer, Forbid, Phoenix, Recall, Stubborn, Possess, Lifeguard, Friendly, Twitchy,
+            Remote,
+        ]
+    };
+
+    fn key(name: &str) -> String {
+        name.chars()
+            .filter(|c| c.is_alphanumeric())
+            .collect::<String>()
+            .to_lowercase()
+    }
+
+    pub fn from_name(name: &str) -> Option<Effect> {
+        let key = Effect::key(name);
+        Effect::ALL
+            .into_iter()
+            .find(|e| Effect::key(&format!("{e:?}")) == key)
+    }
+
+    /// Passive powers that change what "target unit" means.
+    pub fn is_targeting(self) -> bool {
+        use Effect::*;
+        matches!(
+            self,
+            Reach
+                | Spin
+                | Beam
+                | Chain
+                | Halo
+                | Colorblind
+                | Liability
+                | Bully
+                | Stalker
+                | Spotlight
+                | Vengeance
+                | SixShooter
+        )
+    }
+}
+
 pub struct Data {
     pub board: Board,
     pub powers: Vec<Power>,
+    /// The automatic effect of each power, by index.
+    pub effects: Vec<Option<Effect>>,
     /// The *Flag* power.
     pub flag: usize,
     /// The default free power (*Walk*).
@@ -208,7 +330,9 @@ impl Data {
         let walk = find("Walk")
             .or_else(|| powers.iter().position(|p| p.kind == Kind::Active))
             .ok_or("powers.md: there are no active powers")?;
+        let effects = powers.iter().map(|p| Effect::from_name(&p.name)).collect();
         Ok(Data {
+            effects,
             fast: find("Fast"),
             strong: find("Strong"),
             board,
@@ -216,6 +340,17 @@ impl Data {
             flag,
             walk,
         })
+    }
+}
+
+impl Data {
+    pub fn effect(&self, power: usize) -> Option<Effect> {
+        self.effects.get(power).copied().flatten()
+    }
+
+    /// The index of the card with this effect, if powers.md has one.
+    pub fn power_with(&self, effect: Effect) -> Option<usize> {
+        self.effects.iter().position(|e| *e == Some(effect))
     }
 }
 
@@ -262,5 +397,16 @@ mod tests {
         assert_eq!(d.powers[d.walk].kind, Kind::Active);
         assert_eq!(d.powers[d.flag].kind, Kind::Passive);
         assert!(d.fast.is_some() && d.strong.is_some());
+    }
+
+    #[test]
+    fn every_power_has_an_automatic_effect() {
+        let d = data();
+        for (power, effect) in d.powers.iter().zip(&d.effects) {
+            assert!(effect.is_some(), "{} has no automatic effect", power.name);
+        }
+        assert_eq!(d.effect(d.flag), Some(Effect::Flag));
+        assert_eq!(Effect::from_name("Six-shooter"), Some(Effect::SixShooter));
+        assert_eq!(Effect::from_name("Click Click"), Some(Effect::ClickClick));
     }
 }

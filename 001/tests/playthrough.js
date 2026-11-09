@@ -1,4 +1,5 @@
-// Plays complete games of 001 through the UI, with two bot players in separate browsers.
+// Plays complete games of 001 with manual rules through the UI, with two bot players in
+// separate browsers. (tests/auto_playthrough.js does the same with automatic rules.)
 //
 // The bots only use the page the way a person would (clicking, tapping, dragging), and read
 // the page's state to decide what to do and to check that every turn left the game consistent
@@ -415,6 +416,7 @@ async function newGame(pl, o) {
   const page = pl.page;
   await press(pl, 'button[data-act=new-game]');
   await page.waitForSelector('#ng-first');
+  await page.selectOption('#ng-rules', 'manual');
   await page.selectOption('#ng-first', o.first === null ? '' : String(o.first));
   await page.selectOption('#ng-free', { label: o.free || 'Walk' });
   await page.setChecked('#ng-y', !!o.y);

@@ -385,3 +385,14 @@ button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
 }
 #toast[hidden] { display: none; }
 #toast button { background: #fff; }
+
+/* Automatic rules: legal moves and prompts. */
+.unit .ready { fill: none; stroke: var(--accent); stroke-width: .06; stroke-dasharray: .14 .09; }
+.cell.choice polygon { fill: #dff0df; stroke: var(--accent); stroke-width: .09; }
+.unit.choice .body { stroke: var(--accent); stroke-width: .14; }
+.cell.hover polygon, .unit.hover .body { stroke: #c77700; stroke-width: .16; }
+.facing .fp-dir.usable circle { stroke: var(--accent); stroke-width: .1; }
+.choice-btn { text-align: left; }
+.card.forbidden { opacity: .55; }
+.status { color: #7a4d00; }
+.rules-tag { align-self: center; }

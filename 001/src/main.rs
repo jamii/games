@@ -4,17 +4,14 @@
 //! websocket, takes one of the two seats, and gets its own view of the game
 //! (hands are hidden from the other player) every time anything changes.
 
-mod data;
-mod game;
-
 use axum::Router;
 use axum::extract::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::http::header;
 use axum::response::{Html, IntoResponse};
 use axum::routing::get;
-use data::{CellKind, Seat, data};
-use game::{Action, Game, LABELS, MAX_POWERS, Options, SEAT_NAMES};
+use game_001::data::{self, CellKind, Seat, data};
+use game_001::game::{Action, Game, LABELS, MAX_POWERS, Options, SEAT_NAMES};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -143,7 +140,9 @@ impl Server {
             "seats": seats,
             "game": self.game.view(seat),
             "log": log,
-            "can_undo": seat == Some(self.game.current) && !self.history.is_empty(),
+            "can_undo": seat == Some(self.game.current)
+                && self.game.pending.is_none()
+                && !self.history.is_empty(),
         })
         .to_string()
     }
@@ -234,17 +233,26 @@ impl Server {
                 let Some(seat) = self.seat_of(id) else {
                     return self.send_error(id, "Take a seat to play.", None);
                 };
-                let before = self.game.clone();
+                // While a prompt is waiting, the game is still the state before
+                // the action, plus the prompt.
+                let mut before = self.game.clone();
+                before.pending = None;
                 match self.game.apply(seat, &action) {
                     Ok(lines) => {
-                        if action.undoable() && before.turn == self.game.turn {
+                        let revealed = self.game.draws != before.draws;
+                        let turn_over =
+                            before.turn != self.game.turn || before.current != self.game.current;
+                        if revealed || turn_over || !action.undoable() {
+                            self.history.clear();
+                        } else if self.game.pending.is_none()
+                            && !matches!(action, Action::Cancel)
+                            && !lines.is_empty()
+                        {
                             let what = lines.first().cloned().unwrap_or_default();
                             self.history.push((before, what));
                             if self.history.len() > UNDO_LIMIT {
                                 self.history.remove(0);
                             }
-                        } else {
-                            self.history.clear();
                         }
                         self.push_log(Some(seat), lines);
                         self.broadcast();
@@ -267,6 +275,9 @@ impl Server {
                 };
                 if seat != self.game.current {
                     return self.send_error(id, "You can only undo during your own turn.", None);
+                }
+                if self.game.pending.is_some() {
+                    return self.send_error(id, "Cancel the current action first.", None);
                 }
                 let Some((game, what)) = self.history.pop() else {
                     return self.send_error(id, "Nothing to undo.", None);
