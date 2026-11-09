@@ -74,6 +74,9 @@ fn agent(spec: &str, seed: u64, learned: &Option<Arc<Learned>>) -> Box<dyn Agent
     }
 }
 
+/// Stop a game after this many decisions, in case something loops.
+const MAX_DECISIONS: u32 = 5000;
+
 fn power_index(name: &str) -> usize {
     data()
         .powers
@@ -139,6 +142,19 @@ fn play(
         let action = agents[seat].choose(&game, seat);
         let took = t.elapsed().as_secs_f64();
         stats.seconds[seat] += took;
+        let total = stats.decisions[0] + stats.decisions[1];
+        if total > 0 && total % 500 == 0 {
+            eprintln!(
+                "long game: seed {seed}, {total} decisions, turn {}, phase {:?}, prompt {:?}, next {action:?}",
+                game.turn,
+                game.phase,
+                game.prompt().map(|p| &p.text)
+            );
+        }
+        if total >= MAX_DECISIONS {
+            eprintln!("seed {seed}: stopped after {total} decisions");
+            break;
+        }
         if took > 2.0 {
             eprintln!(
                 "slow decision: seed {seed}, turn {}, {:.1}s, {} units, {} cards in hands",
