@@ -266,9 +266,10 @@ against the previous network (`results/stage2/`):
 The yardstick saturates (the game has enough luck that even a much stronger
 bot loses some games), so the head-to-head column is the better measure of
 progress. (Each match is 100 games, so each Elo step is uncertain by about
-±70.)
+±70.) As a direct check, **net6 beat net0 88–12** (about +350 Elo), so the
+chain isn't just accumulated noise.
 
-The web app's bot (**Add a bot**) uses `bots/net.json`, currently net4.
+The web app's bot (**Add a bot**) uses `bots/net.json`, currently net6.
 
 ### Where to run it, and what it costs
 
