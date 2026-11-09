@@ -133,7 +133,7 @@ so far, for cards the two measures above rated strong, weak, or disagreed on
 | Phoenix | +6.1 ± 6.2 | strong | weak |
 | Trail | −0.5 ± 7.2 | strong | strong |
 | Bungee | −3.0 ± 7.6 | weak | weak |
-| Stubborn | (running) | strong | weak |
+| Stubborn | −1.5 ± 6.4 | strong | weak |
 
 **The correlational measures got Forbid and Trail backwards**, so treat them
 as pointers at most and use the causal test for decisions. Running it for all
