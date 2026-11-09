@@ -272,6 +272,7 @@ against the previous network (`results/stage2/`):
 | net4 | 93–7 | 63–37 | +326 |
 | net5 | 96–4 | 56–44 | +368 |
 | net6 | 92–8 | 58–42 | +424 |
+| net7 | 91–9 | 55–45 | +459 |
 <!-- /generations -->
 
 The yardstick saturates (the game has enough luck that even a much stronger
