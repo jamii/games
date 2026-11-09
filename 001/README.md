@@ -10,7 +10,9 @@ cargo run --release
 Open `http://<host>:3000` in two browsers (set `PORT` to change the port) and click
 **Play as Letters** in one and **Play as Numbers** in the other. Anyone else who opens
 the page can watch. Seats are remembered per browser tab, so reloading keeps your seat.
-Two tabs in the same browser can also be the two players.
+Two tabs in the same browser can also be the two players. If a player's tab is closed,
+whoever opens the page next can take over their seat. It works on phones too (tap and
+drag with a finger).
 
 The board diagram is read from `../rules.md` and the cards from `../powers.md` at
 compile time, so after editing either one, rebuild to pick up the changes.
@@ -68,3 +70,16 @@ The game lives in memory, so restarting the server ends it.
 - `src/main.rs` is the axum server: one websocket per browser, and each one gets its own
   view of the game.
 - `static/` holds the front end (plain HTML, CSS and JS, embedded in the binary).
+
+## Tests
+
+`cargo test` checks the rules. `tests/playthrough.js` plays three complete games in real
+browsers, using only clicks, taps and drags: default options, all the advanced options,
+and a game where one player is on a phone. After every turn it checks that both browsers
+agree, hands stay hidden, no card is lost or duplicated, and nothing shows an error.
+
+```bash
+PORT=3123 cargo run --release &
+npm install playwright && npx playwright install chromium   # once
+node tests/playthrough.js
+```

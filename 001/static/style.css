@@ -80,10 +80,28 @@ button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
 #play { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 #side { display: flex; flex-direction: column; gap: 12px; min-width: 0; position: sticky; top: 60px; }
 
+/* Narrow screens: one column, with the selected unit's actions right under the board. */
 @media (max-width: 980px) {
-  #layout { grid-template-columns: minmax(0, 1fr); padding: 8px; }
-  #side { position: static; }
-  #topbar { flex-wrap: wrap; padding: 8px; }
+  #layout { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 8px; }
+  #play, #side { display: contents; }
+  #roster-top { order: 1; }
+  #board-wrap { order: 2; }
+  #inspector { order: 3; }
+  #roster-bottom { order: 4; }
+  #hand { order: 5; }
+  #market { order: 6; }
+  #log-wrap { order: 7; }
+  #topbar { flex-wrap: wrap; gap: 6px 10px; padding: 6px 8px; }
+  #topbar .conn { order: 1; }
+  /* One line only: a header that changes height would shift everything under a finger. */
+  #topbar .phase { order: 2; flex: 1 1 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #topbar .buttons { order: 3; width: 100%; }
+  #topbar .buttons button { padding: 3px 8px; font-size: 13px; }
+  .help-long { display: none; }
+  .slot .pchip { white-space: normal; }
+}
+@media (min-width: 981px) {
+  .help-short { display: none; }
 }
 
 .panel, .roster, #board-wrap, .strip {
@@ -137,12 +155,14 @@ button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
 .unit.neutral .pointer { fill: var(--neutral); }
 .unit.flag .body { fill: var(--flag-bg); stroke: var(--flag); }
 .unit.flag .pointer { fill: var(--flag); }
-.unit.spent .body { fill-opacity: .55; }
-.unit.spent .label { opacity: .55; }
+/* Dim units that have used their activations, but keep the body opaque so stacks stay legible. */
+.unit.spent .body { stroke-opacity: .55; }
+.unit.spent .label, .unit.spent .pointer, .unit.spent .pip { opacity: .45; }
 .unit.buried { opacity: .75; }
 .unit.selected .body { stroke: var(--ink); stroke-width: .11; }
 .unit.target .body { stroke: var(--accent); stroke-width: .13; }
 .unit.dragging { opacity: .85; pointer-events: none; }
+.unit.drag-source { opacity: .3; }
 .unit .label {
   font-size: .5px;
   font-weight: 800;

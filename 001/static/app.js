@@ -205,7 +205,9 @@ function cellAt(p) {
 
 function render() {
   if (!init || !view) return;
-  if (drag && drag.moved) { renderPending = true; return; }
+  // Never replace the board while a finger or mouse button is down on it: if the element
+  // under a finger disappears mid-gesture, Chrome swallows the click of the next tap.
+  if (drag) { renderPending = true; return; }
   renderPending = false;
   renderTop();
   renderBoard();
@@ -222,21 +224,21 @@ function phaseText() {
     const m = ui.mode;
     if (m.kind === 'apply-hand' || m.kind === 'apply-free') {
       const name = P(m.kind === 'apply-hand' ? m.card : m.power).name;
-      return { text: `Applying ${name}: click one of your units in a home space (Esc to cancel)`, cls: 'mode' };
+      return { text: `Apply ${name}: pick one of your units at home · Esc to cancel`, cls: 'mode' };
     }
     if (m.kind === 'move-power') {
       const u = unitById(m.unit);
-      return { text: `Moving ${P(u.powers[m.index].power).name}: click the unit to move it to (Esc to cancel)`, cls: 'mode' };
+      return { text: `Move ${P(u.powers[m.index].power).name}: pick a unit to move it to · Esc to cancel`, cls: 'mode' };
     }
   }
   switch (g.phase.kind) {
     case 'draft':
       return mine
-        ? { text: `Draft: take a card from the faceup row or the deck (${(g.hand || []).length}/${DRAFT_CARDS})`, cls: 'mine' }
-        : { text: `Draft: waiting for ${cur} to take a card`, cls: '' };
+        ? { text: `Draft: take a card (${(g.hand || []).length}/${DRAFT_CARDS})`, cls: 'mine' }
+        : { text: `Draft: ${cur} is choosing`, cls: '' };
     case 'draw':
       return mine
-        ? { text: `Draw ${plural(g.phase.remaining, 'card')}: take from the faceup row or the deck`, cls: 'mine' }
+        ? { text: `Draw ${plural(g.phase.remaining, 'card')}`, cls: 'mine' }
         : { text: `${cur} is drawing`, cls: '' };
     case 'main':
       return mine
@@ -257,7 +259,7 @@ function renderTop() {
   buttons += '<button data-act="reference">Rules &amp; cards</button>';
   $('topbar').innerHTML = `
     <div class="title">001</div>
-    <div class="phase ${phase.cls}">${esc(phase.text)}</div>
+    <div class="phase ${phase.cls}" title="${esc(phase.text)}">${esc(phase.text)}</div>
     <div class="buttons">${buttons}</div>
     <div class="conn ${connected ? 'on' : ''}" title="${connected ? 'Connected' : 'Reconnecting…'}"></div>`;
 }
@@ -456,7 +458,12 @@ function renderInspector() {
 
 function helpPanel() {
   return `<h3>How to play</h3>
-  <ul>
+  <p class="help-short muted">Tap a unit or a space on the board to see what you can do with it.
+  The full instructions are under <b>Rules &amp; cards</b>.</p>
+  <div class="help-long">${HELP}</div>`;
+}
+
+const HELP = `<ul>
     <li>Each player opens this page in their own browser and clicks <b>Play as…</b>.</li>
     <li>Draft and draw by clicking a faceup card or the deck.</li>
     <li>Click one of your empty home spaces to spawn a unit.</li>
@@ -466,7 +473,6 @@ function helpPanel() {
     <li>When a rule check blocks something a power allows, choose <b>Do it anyway</b>. <b>Undo</b> works until you draw or end your turn.</li>
     <li><b>End turn</b> counts units next to the flag and offers to score.</li>
   </ul>`;
-}
 
 function unitPanel(u) {
   const main = canMain();
@@ -710,9 +716,10 @@ function openReference(tab) {
   const tabs = `<div class="tabs">
     <button class="${ui.refTab === 'rules' ? 'on' : ''}" data-modal="tab" data-tab="rules">Rules</button>
     <button class="${ui.refTab === 'powers' ? 'on' : ''}" data-modal="tab" data-tab="powers">All powers (${init.powers.length})</button>
+    <button class="${ui.refTab === 'help' ? 'on' : ''}" data-modal="tab" data-tab="help">How to play</button>
   </div>`;
-  const body = ui.refTab === 'rules'
-    ? `<div class="rules-text">${md(init.rules)}</div>`
+  const body = ui.refTab === 'rules' ? `<div class="rules-text">${md(init.rules)}</div>`
+    : ui.refTab === 'help' ? HELP
     : `<div class="power-list"><div class="cards">${init.powers.map((_, i) => cardHtml(i)).join('')}</div></div>`;
   openModal(`${tabs}${body}<div class="modal-actions"><button data-modal="close">Close</button></div>`,
     { tab: d => openReference(d.tab) }, true);
@@ -769,30 +776,39 @@ function targetUnit(u) {
 
 function setupBoard() {
   const svg = $('board');
+  // Called once the gesture is completely over (after any touchend), to redraw the board.
+  const finish = d => setTimeout(() => {
+    if (drag !== d) return;
+    drag = null;
+    render();
+  }, 0);
   svg.addEventListener('pointerdown', e => {
     if (e.button !== 0 || !view) return;
     const ug = e.target.closest('[data-unit]');
-    drag = { target: e.target, id: ug ? +ug.dataset.unit : null, g: ug, x0: e.clientX, y0: e.clientY, moved: false, pointer: e.pointerId };
+    drag = { target: e.target, id: ug ? +ug.dataset.unit : null, g: ug, x0: e.clientX, y0: e.clientY, moved: false, done: false, pointer: e.pointerId };
   });
   svg.addEventListener('pointermove', e => {
-    if (!drag || drag.id === null || !canMain() || ui.mode) return;
+    if (!drag || drag.done || drag.id === null || !canMain() || ui.mode) return;
     if (!drag.moved) {
       if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) return;
       drag.moved = true;
       svg.setPointerCapture(drag.pointer);
-      drag.g.classList.add('dragging');
-      svg.appendChild(drag.g);
+      // Drag a copy, leaving the original element where it is.
+      drag.ghost = drag.g.cloneNode(true);
+      drag.ghost.classList.add('dragging');
+      drag.g.classList.add('drag-source');
+      svg.appendChild(drag.ghost);
     }
     const p = svgPoint(e);
-    drag.g.setAttribute('transform', `translate(${p.x.toFixed(3)},${p.y.toFixed(3)})`);
+    drag.ghost.setAttribute('transform', `translate(${p.x.toFixed(3)},${p.y.toFixed(3)})`);
     const c = cellAt(p);
     svg.querySelectorAll('.cell.drop').forEach(n => n.classList.remove('drop'));
     if (c) { const n = svg.querySelector(`[data-cell="${key(c)}"]`); if (n) n.classList.add('drop'); }
   });
   svg.addEventListener('pointerup', e => {
-    if (!drag) return;
+    if (!drag || drag.done) return;
     const d = drag;
-    drag = null;
+    d.done = true;
     if (d.moved) {
       const c = cellAt(svgPoint(e));
       const u = unitById(d.id);
@@ -800,16 +816,19 @@ function setupBoard() {
         act({ type: 'move', unit: d.id, cell: c });
         ui.sel = { unit: d.id };
       }
-      render();
     } else {
       boardClick(d.target);
     }
-    if (renderPending) render();
+    finish(d);
   });
   svg.addEventListener('pointercancel', () => {
-    drag = null;
-    render();
+    if (!drag) return;
+    drag.done = true;
+    finish(drag);
   });
+  // Taps are handled by the pointer events above. Without this, the browser follows a
+  // tap with a synthetic click, which would land on (and close) any dialog the tap opened.
+  svg.addEventListener('touchend', e => { if (e.cancelable) e.preventDefault(); }, { passive: false });
 }
 
 function handleAct(a, d) {
