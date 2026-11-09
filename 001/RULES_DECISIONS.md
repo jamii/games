@@ -30,8 +30,10 @@ Tests for most of these are in `src/rules/tests.rs`.
 
 ## Turn structure
 
-- "Draw 2 cards" works like the setup draft: take a faceup card (its slot is refilled from
-  the deck) or the top card of the deck.
+- "Draw 2 cards" works like the setup draft: take a faceup card or the top card of the
+  deck. Taking a faceup card works the same way everywhere (the draft, the draws at the
+  start of a turn, and *Mine*): the cards to its right slide left, and a new card is drawn
+  on the right.
 - When the deck runs out, the discard pile is shuffled to form a new deck.
 - Spawned units face the far side of the board. The player can turn them when they activate.
 - Applying a power to a full unit means choosing which power it replaces. A power can only

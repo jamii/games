@@ -784,6 +784,14 @@ fn flag_powers_pacifist_recycle_mine_vacuum_nuke() {
     activate(&mut g, m, E, 0).unwrap();
     choose_label(&mut g, "deck");
     assert_eq!(g.hands[0].len(), 1);
+    let faceup = g.faceup.clone();
+    let next = *g.deck.last().unwrap();
+    g.unit_mut(m).activations = 0;
+    activate(&mut g, m, E, 0).unwrap();
+    choose_label(&mut g, &format!("Take {}", power_name(faceup[1])));
+    assert_eq!(g.hands[0][1], faceup[1]);
+    let expected = [faceup[0], faceup[2], faceup[3], faceup[4], faceup[5], next];
+    assert_eq!(g.faceup, expected, "the faceup row slides left");
     let far = put(&mut g, Some(0), (-6, 3), E, &["Mine"]);
     assert!(activate(&mut g, far, E, 0).is_err(), "not next to the flag");
 

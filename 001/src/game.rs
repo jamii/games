@@ -560,10 +560,7 @@ impl Game {
                         ""
                     }
                 ));
-                self.faceup.remove(slot);
-                if let Some(new) = self.draw_card(log) {
-                    self.faceup.insert(slot, new);
-                }
+                self.take_faceup(slot, log);
                 self.hands[seat].push(card);
                 self.after_take(seat, log);
             }
@@ -1118,6 +1115,14 @@ impl Game {
         card
     }
 
+    /// Take a card from the faceup row: the cards to its right slide left to
+    /// fill the gap, and a new card is drawn on the right.
+    pub(crate) fn take_faceup(&mut self, slot: usize, log: &mut Vec<String>) -> usize {
+        let card = self.faceup.remove(slot);
+        self.refill_faceup(log);
+        card
+    }
+
     fn refill_faceup(&mut self, log: &mut Vec<String>) {
         while self.faceup.len() < FACEUP_SLOTS {
             match self.draw_card(log) {
@@ -1440,9 +1445,12 @@ mod tests {
         let (mut game, _) = Game::new(options).unwrap();
         assert!(game.apply(1, &Action::TakeDeck).is_err(), "not your turn");
         let faceup = game.faceup.clone();
-        game.apply(0, &Action::TakeFaceup { slot: 0 }).unwrap();
-        assert_eq!(game.hands[0], vec![faceup[0]]);
-        assert_eq!(game.faceup.len(), FACEUP_SLOTS);
+        let next = *game.deck.last().unwrap();
+        game.apply(0, &Action::TakeFaceup { slot: 2 }).unwrap();
+        assert_eq!(game.hands[0], vec![faceup[2]]);
+        // The cards to the right slide left, and the new card goes on the right.
+        let expected = [faceup[0], faceup[1], faceup[3], faceup[4], faceup[5], next];
+        assert_eq!(game.faceup, expected);
         assert_eq!(game.current, 1);
         for _ in 0..2 {
             game.apply(1, &Action::TakeDeck).unwrap();

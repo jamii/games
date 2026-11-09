@@ -18,7 +18,7 @@ Setup:
 * Find the *Walk* power and put the *Free Power X* token on it.
 * Deal 6 power cards faceup beside the board.
 * Take turns drawing until each player has 3 cards. You can draw either:
-  * A faceup card (and immediately replace it with a card from the deck).
+  * A faceup card. Slide the faceup cards to its right to the left to fill the gap, then draw a new faceup card on the right.
   * The top card of the deck.
 * Put the flag in the space marked 'F', with the arrow pointing to one side of the board. The flag is a neutral unit with the *Flag* power.
 * First player starts with 0 points, second player with 1 point.

@@ -2294,10 +2294,7 @@ impl Game {
                 let i = ctx.ask(self, "Mine: draw which card?", options)?;
                 let mut log = Vec::new();
                 if i < self.faceup.len() {
-                    let card = self.faceup.remove(i);
-                    if let Some(new) = self.draw_card(&mut log) {
-                        self.faceup.insert(i, new);
-                    }
+                    let card = self.take_faceup(i, &mut log);
                     self.hands[seat].push(card);
                     ctx.log(format!(
                         "{} took {} (Mine).",
