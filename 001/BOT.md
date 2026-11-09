@@ -160,8 +160,9 @@ and the stage 2 bot drafts it 79% of the times it's offered. The reason
 (`examples/swap_usage.rs`): 68% of the bots' swaps are with the flag. The
 *Flag* card only limits the flag to one space per turn, so Swap moves the flag
 next to your units, every turn, gaining 1.4 in flag lead per swap on average.
-Possible fixes: the flag can't be swapped (or moved by powers at all), or
-Swap only targets units of the same kind (unit for unit).
+Possible fixes: Swap can't target the flag, or the flag can't be moved by
+powers at all (which also affects Pull, Push, Heavy and the like). Re-run
+`tools/card_value.sh Swap` after the change to check.
 
 **The correlational measures are unreliable**: they rated Forbid and Bully
 weak (both are among the strongest cards in hand), and Trail and Explosive
