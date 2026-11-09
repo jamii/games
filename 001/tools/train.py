@@ -251,7 +251,7 @@ def run_epoch(model, data, batch_size, device, opt=None, q_mix=0.0, value_weight
     order = list(range(len(data)))
     if training:
         random.shuffle(order)
-    totals = {"policy": 0.0, "value": 0.0, "top1": 0.0, "entropy": 0.0, "n": 0}
+    totals = {"policy": 0.0, "value": 0.0, "outcome": 0.0, "top1": 0.0, "entropy": 0.0, "n": 0}
     for start in range(0, len(order), batch_size):
         batch = [data[i] for i in order[start:start + batch_size]]
         x = collate(batch, device)
@@ -270,6 +270,8 @@ def run_epoch(model, data, batch_size, device, opt=None, q_mix=0.0, value_weight
         n = len(batch)
         totals["policy"] += policy_loss.item() * n
         totals["value"] += value_loss.item() * n
+        # How well the value predicts who won, whatever the target (guessing 0 scores 1).
+        totals["outcome"] += F.mse_loss(value, x["z"], reduction="sum").item()
         pi = x["pi"]
         totals["top1"] += (logits.argmax(-1) == pi.argmax(-1)).float().sum().item()
         ent = -(pi * torch.log(pi.clamp(min=1e-9))).sum(-1)
@@ -292,9 +294,11 @@ def main():
     parser.add_argument("--heads", type=int, default=4)
     parser.add_argument("--layers", type=int, default=2)
     parser.add_argument("--ff", type=int, default=128)
-    parser.add_argument("--q-mix", type=float, default=0.0,
-                        help="value target: (1-m)·outcome + m·search value (default 0: outcome only)")
-    parser.add_argument("--value-weight", type=float, default=1.0)
+    parser.add_argument("--q-mix", type=float, default=0.5,
+                        help="value target: (1-m)·outcome + m·search value (default 0.5). Every position in "
+                             "a game has the same outcome, so with few games the network can memorise "
+                             "which deals were won; the search's value varies within a game")
+    parser.add_argument("--value-weight", type=float, default=0.5)
     parser.add_argument("--max-samples", type=int, default=None, help="only read this many (newest last)")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--threads", type=int, default=None, help="CPU threads for PyTorch")
@@ -338,16 +342,24 @@ def main():
             opt.step()
             sched.step()
 
+    # Keep the epoch that does best on the held-out games.
+    best = (float("inf"), None, 0)
     for epoch in range(args.epochs):
         t = time.time()
         tr = run_epoch(model, train, args.batch, args.device, Stepper(), args.q_mix, args.value_weight)
         ho = run_epoch(model, held, args.batch, args.device, None, args.q_mix) if held else None
         line = (f"epoch {epoch + 1}: train policy {tr['policy']:.3f} (target entropy {tr['entropy']:.3f}) "
-                f"top-1 {100 * tr['top1']:.1f}% value {tr['value']:.3f}")
+                f"top-1 {100 * tr['top1']:.1f}% value {tr['value']:.3f} outcome {tr['outcome']:.3f}")
         if ho:
             line += (f" | held out policy {ho['policy']:.3f} (entropy {ho['entropy']:.3f}) "
-                     f"top-1 {100 * ho['top1']:.1f}% value {ho['value']:.3f}")
+                     f"top-1 {100 * ho['top1']:.1f}% value {ho['value']:.3f} outcome {ho['outcome']:.3f}")
+            score = ho["policy"] + args.value_weight * ho["value"]
+            if score < best[0]:
+                best = (score, {k: v.detach().clone() for k, v in model.state_dict().items()}, epoch + 1)
         print(line + f" | {time.time() - t:.0f}s", flush=True)
+    if best[1] is not None:
+        model.load_state_dict(best[1])
+        print(f"keeping epoch {best[2]}")
 
     model.cpu()
     export(model, args.out, make_checks(model, held or train, "cpu"))

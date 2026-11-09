@@ -13,7 +13,8 @@
 # Defaults: 10 generations, 1000 games each, 200x4 search. Settings via the
 # environment: WINDOW (generations of samples to train on, default 4), EPOCHS
 # (default 4; 12 for generation 0), EVAL_GAMES (default 100), TRAIN_ARGS
-# (extra arguments for tools/train.py, eg "--device cuda --d 128 --layers 4").
+# (extra arguments for tools/train.py, eg "--device cuda --d 128 --layers 4"),
+# THREADS (self-play threads, default all cores), PYTHON (with PyTorch).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 dir=${1:?usage: tools/alphazero.sh DIR [GENERATIONS] [GAMES] [SEARCH]}
@@ -26,7 +27,7 @@ eval_games=${EVAL_GAMES:-100}
 python=${PYTHON:-python3}
 mkdir -p "$dir"
 cargo build --release --bin selfplay
-selfplay=./target/release/selfplay
+selfplay="./target/release/selfplay ${THREADS:+--threads $THREADS}"
 
 # Seeds: generation g uses g*100000 onwards, the yardstick 900000+g*1000.
 if [ ! -s "$dir/gen0.jsonl" ]; then

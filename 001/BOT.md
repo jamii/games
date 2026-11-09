@@ -70,7 +70,71 @@ python3 tools/fit_eval.py positions.jsonl --out weights.json
 
 ## Results
 
-RESULTS
+All with `mcts:400x4` against itself, 60-turn limit, unless noted. Raw games
+are in `results/` (`results/summary.txt` has the full card table).
+
+### Bot strength and speed
+
+- Strength rises with search: `greedy` beat `random` 20–0, `mcts:800x4` beat
+  `greedy` 14–2 and beat `mcts:200x4` 23–12. (Small samples; the point is that
+  more search still helps, so the evaluation isn't the only limit.)
+- The rules engine plays about 16,000 random decisions a second on one core
+  (listing legal actions takes about 60 µs, applying one about 3 µs).
+  `mcts:400x4` takes about 10 ms per decision, and a game 5–10 s on one core,
+  so 600 games take about 15 minutes on 4 cores.
+
+### First player advantage
+
+| second player starts with | first player wins (95% interval) | turns |
+|---|---|---|
+| 0 points | 59% (55–63%) | 12.6 |
+| 1 point (the current rules) | 54% (50–58%) | 12.6 |
+| 2 points | 49% (45–53%) | 10.8 |
+
+600 games each, on the same 600 deals. Each starting point is worth about 5
+percentage points. With the current 1 point the first player still has a
+small edge (the interval only just reaches 50%); 2 points looks even for bots
+of this strength, and shortens games. Stronger players may value tempo
+differently, so this is worth re-running with the stage 2 bot.
+
+### Cards
+
+Two correlational measures, both noisy at this sample size:
+- **Lift**: how much more often players who applied the card won than seat
+  order predicts. Highest: Phoenix, Strong, Remote, Lifeguard, Trail, Bridge
+  (+18 to +22 points relative to the average card). Lowest: Bungee, Rush,
+  Neutralize, Forbid, Burrow, Possess (−9 to −14).
+- **Learned value** (`tools/fit_eval.py`, logistic regression on 13,800
+  positions, controlling for score and board): highest Explosive, Remote,
+  Trail, Bridge, Heavy, Swap; lowest Bully, Liability, Phoenix, Vacuum,
+  Backstab, Spin.
+
+They agree on Remote, Trail and Bridge looking strong, and on Bungee, Rush,
+Forbid, Possess and Neutralize looking weak, or weak in these bots' hands.
+They disagree on Phoenix and Stubborn, which are rare enough (about 200
+positions) that neither measure is reliable. A striking pattern in lift is
+that passive cards do better than active ones; part of that is likely the
+bots: the hand-made evaluation rewards having powers on units, and the bots
+use some active cards badly or never (*Recall* was applied in 280 games and
+activated in none, because the evaluation always prefers a unit on the board
+to cards in hand).
+
+The causal test is `tools/card_value.sh CARD`: the same deals with the card
+removed, and with it given to the second player after the draft. The
+difference in win rate is what the card is worth. It costs about 400 games
+per card.
+
+### Rule problems found by self-play
+
+- **Unlimited actions with *Split*** (in RULES_DECISIONS.md under "Not decided
+  yet"): one game had over 500 splits in a single turn. Bots cap themselves at
+  16 actions per turn, which hides it in experiments, but *Split* is still the
+  most used active power (1.8 times per game, after *Walk*).
+- Self-play also found engine bugs that the scenario tests missed (a crash when
+  an end-of-turn effect referred to a dead unit, and actions with prompts not
+  counting towards the per-turn cap), now fixed and covered by tests.
+
+
 
 ## Stage 2: neural network
 
