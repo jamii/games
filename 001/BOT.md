@@ -148,6 +148,7 @@ where it excludes 0; rebuilt by `tools/card_table.py`):
 | Bully | **+9.1 ± 7.7** | -1 | -0.64 |
 | Forbid | **+8.0 ± 7.4** | -8 | -0.23 |
 | Phoenix | +6.1 ± 6.2 | +15 | -0.60 |
+| Liability | +3.0 ± 7.2 | +1 | -0.60 |
 | Trail | -0.5 ± 7.2 | +17 | +0.65 |
 | Stubborn | -1.5 ± 6.4 | +16 | -0.38 |
 | Split | -2.5 ± 8.2 | -8 | +0.25 |
