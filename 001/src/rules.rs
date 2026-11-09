@@ -344,6 +344,16 @@ impl Game {
         ids
     }
 
+    /// Units on top of their stacks (the only ones that take part in play).
+    pub fn top_units(&self) -> Vec<&Unit> {
+        self.top_ids().into_iter().map(|id| self.unit(id)).collect()
+    }
+
+    /// Where the *Flag* power is.
+    pub fn flag_cell(&self) -> Option<Cell> {
+        self.flag_holder().map(|id| self.unit(id).cell)
+    }
+
     /// The unit with the *Flag* power.
     fn flag_holder(&self) -> Option<u32> {
         self.units.iter().find(|u| u.is_flag()).map(|u| u.id)
@@ -703,7 +713,12 @@ impl Game {
                     return Err(hard("Answer the current question first."));
                 }
                 let base = Box::new(self.clone());
-                self.settle(base, action.clone(), seat, Vec::new())
+                let was_main = self.phase == Phase::Main;
+                let log = self.settle(base, action.clone(), seat, Vec::new())?;
+                if was_main && self.phase == Phase::Main && self.current == seat {
+                    self.actions_this_turn += 1;
+                }
+                Ok(log)
             }
         }
     }

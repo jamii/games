@@ -159,6 +159,9 @@ pub struct Options {
     /// Seed for shuffling. None picks one at random.
     #[serde(default)]
     pub seed: Option<u64>,
+    /// Cards left out of the deck (for balance experiments).
+    #[serde(default)]
+    pub removed: Vec<usize>,
 }
 
 fn default_automatic() -> bool {
@@ -185,6 +188,7 @@ impl Default for Options {
             second_player_points: default_second_player_points(),
             automatic: default_automatic(),
             seed: None,
+            removed: Vec::new(),
         }
     }
 }
@@ -205,7 +209,7 @@ pub enum Phase {
     },
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Action {
     // Drawing. Allowed in the draft and draw phases, and as a manual action
@@ -372,6 +376,8 @@ pub struct Game {
     pub faceup: Vec<usize>,
     pub free_powers: Vec<usize>,
     pub spawned_this_turn: bool,
+    /// Actions the current player has taken this turn (bots cap this).
+    pub actions_this_turn: u32,
     pub(crate) next_id: u32,
     pub(crate) next_z: u32,
     /// Automatic or manual rules.
@@ -427,7 +433,7 @@ impl Game {
             .first_player
             .unwrap_or_else(|| (next_random(&mut rng) % 2) as Seat);
         let mut deck: Vec<usize> = (0..d.powers.len())
-            .filter(|&p| p != d.flag && p != free)
+            .filter(|&p| p != d.flag && p != free && !options.removed.contains(&p))
             .collect();
         shuffle(&mut deck, &mut rng);
 
@@ -445,6 +451,7 @@ impl Game {
             faceup: Vec::new(),
             free_powers: vec![free],
             spawned_this_turn: false,
+            actions_this_turn: 0,
             next_id: 1,
             next_z: 1,
             automatic: options.automatic,
@@ -1054,6 +1061,7 @@ impl Game {
     pub(crate) fn begin_turn(&mut self, log: &mut Vec<String>) {
         self.turn += 1;
         self.spawned_this_turn = false;
+        self.actions_this_turn = 0;
         for unit in &mut self.units {
             unit.activations = 0;
             unit.moved = 0;

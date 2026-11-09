@@ -3,6 +3,7 @@ name = "game-001"
 version = "0.1.0"
 edition = "2024"
 publish = false
+default-run = "game-001"
 
 [dependencies]
 axum = { version = "0.8", features = ["ws"] }

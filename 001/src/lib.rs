@@ -4,6 +4,7 @@
 //! player and `Game::apply` carries one out. Shuffles are deterministic given
 //! `Options::seed`.
 
+pub mod bot;
 pub mod data;
 pub mod game;
 pub mod rules;
