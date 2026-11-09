@@ -17,7 +17,7 @@ balance problems. The plan has two stages:
   player holding them, far more than any other card measured, because they
   drag the flag towards their owner (Swap, Heavy, Pull) or take the *Flag*
   power outright (Trade). With the flag fixed in place and the *Flag* power not
-  tradeable, all three drop back in line with other cards. See
+  tradeable, all four drop back in line with other cards. See
   [Cards](#cards) and RULES_DECISIONS.md.
 - **The first player's advantage is small.** With the stronger bot, the current
   rule (second player starts with 1 point) gives 50% (44–57%); with no
