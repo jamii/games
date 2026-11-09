@@ -153,8 +153,10 @@ where it excludes 0; rebuilt by `tools/card_table.py`):
 | Explosive | -4.0 ± 6.7 | +11 | +0.72 |
 <!-- /cards -->
 
-**The correlational measures got Forbid and Trail backwards**, so treat them
-as pointers at most and use the causal test for decisions. Running it for all
+**The correlational measures are unreliable**: they rated Forbid and Bully
+weak (both are among the strongest cards in hand), and Trail and Explosive
+strong (neither measurably helps). Treat them as pointers at most and use the
+causal test for decisions. Running it for all
 64 cards is about 25,000 games: a couple of hours on a rented 32-thread
 machine, a few dollars. Doing it with the stage 2 bot
 (`tools/card_value.sh CARD 200 mctsN:200x4@bots/net.json`) would measure the
