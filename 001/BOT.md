@@ -250,6 +250,7 @@ against the previous network (`results/stage2/`):
 | net1 | 75–25 | 61–39 | +78 |
 | net2 | 81–19 | 59–41 | +141 |
 | net3 | 83–17 | 63–37 | +233 |
+| net4 | 93–7 | 63–37 | +326 |
 <!-- /generations -->
 
 The yardstick saturates (the game has enough luck that even a much stronger
@@ -257,7 +258,7 @@ bot loses some games), so the head-to-head column is the better measure of
 progress. (Each match is 100 games, so each Elo step is uncertain by about
 ±70.)
 
-The web app's bot (**Add a bot**) uses `bots/net.json`, currently net2.
+The web app's bot (**Add a bot**) uses `bots/net.json`, currently net4.
 
 ### Where to run it, and what it costs
 
