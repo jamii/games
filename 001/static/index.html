@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>001</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header id="topbar"></header>
+  <main id="layout">
+    <section id="play">
+      <div id="roster-top" class="roster"></div>
+      <div id="board-wrap">
+        <svg id="board" aria-label="Game board"></svg>
+        <div id="neutral"></div>
+      </div>
+      <div id="roster-bottom" class="roster"></div>
+      <div id="hand" class="strip"></div>
+      <div id="market" class="strip"></div>
+    </section>
+    <aside id="side">
+      <div id="inspector" class="panel"></div>
+      <div id="log-wrap" class="panel">
+        <div class="panel-title">Log</div>
+        <div id="log"></div>
+        <form id="chat">
+          <input id="chat-input" placeholder="Say something…" autocomplete="off" maxlength="500">
+          <button type="submit">Send</button>
+        </form>
+      </div>
+    </aside>
+  </main>
+  <div id="modal" hidden></div>
+  <div id="toast" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>
