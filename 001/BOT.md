@@ -209,13 +209,21 @@ decisions), trained for 10 epochs on 4 CPU threads (about 25 s an epoch):
   only the search's value did worse (63–37 against the same yardstick).
 
 Expert iteration from there (`tools/alphazero.sh`, 1,000 games per
-generation, `mctsN:200x4`, each new network against `mcts:400x4`):
+generation, `mctsN:200x4`, about 45 minutes a generation on this VM). Each
+network plays 100 games against the fixed yardstick `mcts:400x4`, and 100
+against the previous network (`results/stage2/`):
 
-| network | won against `mcts:400x4` (100 games) |
-|---|---|
-| net0 | 74 |
+| network | against `mcts:400x4` | against the previous network |
+|---|---|---|
+| net0 | 74–26 | |
+| net1 | 75–25 | 61–39 |
+| net2 | 81–19 | 59–41 |
 
-The web app's bot (**Add a bot**) uses `bots/net.json`, currently net0.
+The yardstick saturates (the game has enough luck that even a much stronger
+bot loses some games), so the head-to-head column is the better measure of
+progress: each generation so far is about 70 Elo stronger than the last.
+
+The web app's bot (**Add a bot**) uses `bots/net.json`, currently net2.
 
 ### Where to run it, and what it costs
 
