@@ -6,9 +6,33 @@ balance problems. The plan has two stages:
 1. **Search with a hand-made (or learned) evaluation** (done). It adapts
    instantly to rule changes, because it searches the real rules, so it's the
    fast balance check.
-2. **AlphaZero-style self-play with a neural network** (the pieces are built
-   and tested; first training runs below). This is the route to playing better
-   than people; see [Stage 2](#stage-2-neural-network) for the design and costs.
+2. **AlphaZero-style self-play with a neural network** (built, and trained for
+   a first night on a 4-core VM). This is the route to playing better than
+   people; see [Stage 2](#stage-2-neural-network) for the design and costs.
+
+## Key findings
+
+- **The flag is too easy to move or capture.** *Swap*, *Heavy* and *Trade* are
+  each worth about +20 to +30 percentage points of win rate to the player
+  holding them, far more than any other card measured, because they drag the
+  flag towards their owner (Swap, Heavy, also Pull) or take the *Flag* power
+  outright (Trade). With the flag fixed in place, Swap and Heavy drop back in
+  line with other cards. See [Cards](#cards) and RULES_DECISIONS.md.
+- **The first player's advantage is small.** With the stronger bot, the current
+  rule (second player starts with 1 point) gives 50% (44–57%); with no
+  compensation it's 55%. See [First player advantage](#first-player-advantage).
+- **Win-rate correlations mislead about cards.** Measuring a card by giving it
+  to a player on the same deals found Forbid and Bully strong and Trail and
+  Explosive no help, the opposite of what the correlations said. Use
+  `tools/card_value.sh`.
+- **The trained bot beats the hand-made search** 98–2 (net10 against
+  `mcts:400x4`) and is about 570 Elo above its first generation. You can play
+  it in the web app (**Add a bot**). Progress slowed after about 8 generations
+  of 1,000 games; more games per generation, on more cores, is the next step
+  (about $15–40 of rented CPU; a GPU isn't needed yet). See
+  [Where to run it](#where-to-run-it-and-what-it-costs).
+- Self-play found an engine bug (offering a move that couldn't be finished)
+  and a rules loophole (unlimited *Split* actions), both described below.
 
 ## The bots
 
