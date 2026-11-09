@@ -15,8 +15,8 @@ Two tabs in the same browser can also be the two players. If a player's tab is c
 whoever opens the page next can take over their seat. It works on phones too (tap and
 drag with a finger).
 
-The board diagram is read from `../rules.md` and the cards from `../powers.md` at
-compile time, so after editing either one, rebuild to pick up the changes.
+The board diagram is read from `rules.md` and the cards from `powers.md` (both in this
+folder) at compile time, so after editing either one, rebuild to pick up the changes.
 
 ## Automatic and manual rules
 

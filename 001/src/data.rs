@@ -8,8 +8,8 @@ use std::sync::OnceLock;
 
 pub type Seat = usize;
 
-pub const RULES_MD: &str = include_str!("../../rules.md");
-pub const POWERS_MD: &str = include_str!("../../powers.md");
+pub const RULES_MD: &str = include_str!("../rules.md");
+pub const POWERS_MD: &str = include_str!("../powers.md");
 
 /// A board space in "doubled width" coordinates: `y` is the row, and `x`
 /// steps by 2 between horizontally adjacent spaces.

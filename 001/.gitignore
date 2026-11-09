@@ -1,2 +1,3 @@
 /target
 /tests/screenshots
+__pycache__/
