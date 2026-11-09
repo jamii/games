@@ -338,6 +338,7 @@ against the previous network (`results/stage2/`):
 | net10 | 98–2 | 54–46 | +572 |
 | net11 | 90–10 | 44–56 | +530 |
 | net12 | 98–2 | 51–49 | +537 |
+| net13 | 94–6 | 51–49 | +544 |
 <!-- /generations -->
 
 The yardstick saturates (the game has enough luck that even a much stronger
@@ -354,7 +355,9 @@ limit here isn't network size but the number of independent games: a
 training window held about 4,000 game results, and both networks learn to
 recognise games rather than judge positions. From generation 10 the window
 is 8 generations (capped at the newest 900,000 samples). That didn't move
-the plateau: net12 and net10 drew 52–48 head to head. The next levers are
+the plateau: net12 and net10 drew 52–48 head to head. From generation 14,
+self-play searches twice as much (`400x4`) to see if better search targets
+restart progress (the head-to-head matches stay at `200x4`). The next levers are
 more games per generation (4,000+) and more search per move, which is what a
 many-core rented machine buys.
 

@@ -10,3 +10,4 @@
 [100/100] seed 810099 won by 1 (2-5 in 8 turns, 3s) | totals {"mctsN:200x4@training/net10.json": 54, "mctsN:200x4@training/net9.json": 46} | 7.9 min
 [100/100] seed 811099 won by 1 (4-5 in 18 turns, 12s) | totals {"mctsN:200x4@training/net10.json": 56, "mctsN:200x4@training/net11.json": 44} | 7.8 min
 [100/100] seed 812099 won by 0 (5-3 in 11 turns, 5s) | totals {"mctsN:200x4@training/net11.json": 49, "mctsN:200x4@training/net12.json": 51} | 8.1 min
+[100/100] seed 813099 won by 0 (5-4 in 18 turns, 14s) | totals {"mctsN:200x4@training/net12.json": 49, "mctsN:200x4@training/net13.json": 51} | 8.5 min
