@@ -8,3 +8,5 @@ __pycache__/
 /cards-progress.log
 /cards/*.part
 /results/stage2-sweep/*.part
+/cards-net/*.log
+/cards-net/*.part
