@@ -175,18 +175,18 @@ variant (`cards-fixed-flag/`):
 | Swap | **+31.3 ± 8.1** | **+11.5 ± 8.8** | +6.8 ± 9.1 | +3 | +0.49 |
 | Pull | **+30.2 ± 8.5** |  | -3.1 ± 8.0 | +0 | +0.42 |
 | Heavy | **+29.6 ± 8.7** | **+19.0 ± 9.4** | +0.0 ± 7.2 | +15 | +0.51 |
-| Trade |  | **+29.5 ± 8.8** | +1.5 ± 8.0 (stage 2 bot) | -1 | +0.02 |
+| Trade | **+10.0 ± 8.3** | **+29.5 ± 8.8** | +1.5 ± 8.0 (stage 2 bot) | -1 | +0.02 |
 | Strong | **+22.1 ± 8.5** |  |  | +24 | +0.20 |
 | Climb | **+20.3 ± 8.0** |  |  | -2 | +0.24 |
 | Weak | **+19.7 ± 8.0** |  |  | +12 | +0.23 |
 | Push | **+14.6 ± 7.9** |  |  | -1 | +0.14 |
 | Remote | **+11.7 ± 6.8** |  |  | +19 | +0.65 |
-| Bully | **+9.1 ± 7.7** |  |  | -1 | -0.64 |
 | Run | **+9.1 ± 8.8** |  |  | -8 | +0.31 |
+| Bully | **+9.1 ± 7.7** |  |  | -1 | -0.64 |
 | Forbid | **+8.0 ± 7.4** |  |  | -8 | -0.23 |
 | Phoenix | +6.1 ± 6.2 |  |  | +15 | -0.60 |
-| Circle | +3.5 ± 7.9 |  |  | -7 | +0.06 |
 | Rush | +3.5 ± 7.3 |  |  | -12 | -0.13 |
+| Circle | +3.5 ± 7.9 |  |  | -7 | +0.06 |
 | Liability | +3.0 ± 7.2 |  |  | +1 | -0.60 |
 | Trail | -0.5 ± 7.2 |  |  | +17 | +0.65 |
 | Stubborn | -1.5 ± 6.4 |  |  | +16 | -0.38 |
@@ -213,7 +213,9 @@ of +31.3, and Heavy +0.0 ± 7.2 instead of +29.6: both back in line with the
 other cards. **Making the flag immovable fixes both.**
 
 **Trade is the third way to take the flag.** With the stage 2 bot it's worth
-+29.5 ± 8.8 in hand, and in 20 games the bots used it 22 times to trade for
++29.5 ± 8.8 in hand (but only +10.0 ± 8.3 with the stage 1 bot, whose
+hand-made evaluation doesn't see the trick: a reminder that the stage 1
+numbers are lower bounds for cards that need a clever use), and in 20 games the bots used it 22 times to trade for
 the *Flag* power itself: their unit becomes the flag, which they can then
 walk towards their own units. So `--fixed-flag` also stops Trade taking the
 *Flag* power, and with that, Trade drops to +1.5 ± 8.0 with the same bot.
