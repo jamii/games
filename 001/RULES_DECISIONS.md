@@ -223,8 +223,8 @@ Tests for most of these are in `src/rules/tests.rs`.
   moved one space per turn, so *Swap* (swap places with it) and *Heavy* (pull it in at
   the end of your turn) drag it towards your units; with either card in hand a player
   wins about 30 percentage points more often (see BOT.md, "Cards"). Options: no power
-  can move the flag (`selfplay --fixed-flag` plays this way, to measure the effect), or
-  only its holder can.
+  can move the flag, or only its holder can. Measured with `selfplay --fixed-flag` (no
+  power can move it): Swap drops to +7 and Heavy to 0, in line with other cards.
 
 - Rule details from the playtesting notes that aren't in the rules text, like "first player
   doesn't draw on their first turn" and the second player's starting points, are options in
