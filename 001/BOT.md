@@ -392,7 +392,8 @@ self-play searches twice as much (`400x4`) to see if better search targets
 restart progress (the head-to-head matches stay at `200x4`). They didn't:
 net14 beat net13 53–46, then net15 lost to net14 46–54. At this scale (one
 4-core machine, 1,000 games a generation) the bot has levelled off at about
-550 Elo above net0. The next levers are
+550 Elo above net0, so the run stopped after generation 15 and the machine
+went to measuring every card instead. The next levers are
 more games per generation (4,000+) and more search per move, which is what a
 many-core rented machine buys.
 
