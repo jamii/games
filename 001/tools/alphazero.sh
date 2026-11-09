@@ -31,19 +31,22 @@ python=${PYTHON:-python3}
 mkdir -p "$dir"
 cargo build --release --bin selfplay
 selfplay="./target/release/selfplay ${THREADS:+--threads $THREADS}"
+# A generation's samples are done once written (they may since have been
+# compressed to save space).
+have() { [ -s "$1" ] || [ -s "$1.gz" ]; }
 
 # Seeds: generation g uses g*100000 onwards, the yardstick 900000+g*1000.
 if [ -n "${INIT_NET:-}" ] && [ ! -s "$dir/net0.json" ]; then
     cp "$INIT_NET" "$dir/net0.json"
 fi
-if [ ! -s "$dir/gen0.jsonl" ] && [ -s "$dir/net0.json" ]; then
-    echo "== generation 0: $games games of mctsN:$search with $INIT_NET"
+if ! have "$dir/gen0.jsonl" && [ -s "$dir/net0.json" ]; then
+    echo "== generation 0: $games games of mctsN:$search with net0"
     $selfplay --games "$games" --first-seed 0 --net "$dir/net0.json" --agents "mctsN:$search,mctsN:$search" \
         --noise 0.25 --explore-turns 2 --max-turns 60 --variant gen0 --out "$dir/gen0-games.jsonl" \
         --samples "$dir/gen0.jsonl.part" 2> "$dir/gen0.log"
     mv "$dir/gen0.jsonl.part" "$dir/gen0.jsonl"
 fi
-if [ ! -s "$dir/gen0.jsonl" ]; then
+if ! have "$dir/gen0.jsonl"; then
     echo "== generation 0: $games games of mcts:400x4"
     $selfplay --games "$games" --first-seed 0 --agents mcts:400x4,mcts:400x4 --max-turns 60 \
         --variant gen0 --out "$dir/gen0-games.jsonl" --samples "$dir/gen0.jsonl.part" 2> "$dir/gen0.log"
@@ -76,7 +79,7 @@ print(f'net$g: won {wins} of {done} finished games against mcts:400x4 ({len(game
 yardstick 0
 for g in $(seq 1 "$generations"); do
     prev=$((g - 1))
-    if [ ! -s "$dir/gen$g.jsonl" ]; then
+    if ! have "$dir/gen$g.jsonl"; then
         echo "== generation $g: $games games of mctsN:$search with net$prev"
         $selfplay --games "$games" --first-seed $((g * 100000)) --net "$dir/net$prev.json" \
             --agents "mctsN:$search,mctsN:$search" --noise 0.25 --explore-turns 2 --max-turns 60 \
@@ -86,7 +89,7 @@ for g in $(seq 1 "$generations"); do
     if [ ! -s "$dir/net$g.json" ]; then
         files=()
         for k in $(seq $((g - window + 1)) "$g"); do
-            if [ "$k" -ge 0 ]; then files+=("$dir/gen$k.jsonl"); fi
+            if [ "$k" -ge 0 ] && [ -s "$dir/gen$k.jsonl" ]; then files+=("$dir/gen$k.jsonl"); fi
         done
         echo "== training net$g on ${files[*]}"
         $python tools/train.py "${files[@]}" --init "$dir/net$prev.json" --out "$dir/net$g.json" \

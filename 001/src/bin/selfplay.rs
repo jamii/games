@@ -273,8 +273,15 @@ fn play(
             _ => {}
         }
         let before = owned(&game);
-        game.apply(seat, &action)
-            .unwrap_or_else(|e| panic!("seed {seed}: illegal action {action:?}: {}", e.message));
+        if let Err(e) = game.apply(seat, &action) {
+            // A bug in the rules engine (a legal action that can't be carried
+            // out). Stop this game rather than the whole run.
+            eprintln!(
+                "seed {seed}: ENGINE BUG: legal action {action:?} failed: {} (game stopped)",
+                e.message
+            );
+            break;
+        }
         let after = owned(&game);
         for s in 0..2 {
             stats.units_lost[s] += before[s].saturating_sub(after[s]);
