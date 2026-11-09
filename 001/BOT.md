@@ -143,6 +143,7 @@ where it excludes 0; rebuilt by `tools/card_table.py`):
 | card | worth in hand (points) | relative lift (points) | learned value (log-odds) |
 |---|---|---|---|
 | Remote | **+11.7 ± 6.8** | +19 | +0.65 |
+| Bully | **+9.1 ± 7.7** | -1 | -0.64 |
 | Forbid | **+8.0 ± 7.4** | -8 | -0.23 |
 | Phoenix | +6.1 ± 6.2 | +15 | -0.60 |
 | Trail | -0.5 ± 7.2 | +17 | +0.65 |
