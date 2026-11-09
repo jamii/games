@@ -1,7 +1,9 @@
 //! What moves the flag? Plays games with CARD given to the first player and
 //! records every action that moves the flag: which power did it (or the end of
 //! the turn, for passive powers like *Heavy*), and how it changed the mover's
-//! lead at the flag. Also counts what *Swap* is used on, if it's in play.
+//! lead at the flag. Also reports how CARD itself was used (if it's an active
+//! power): whether it moved the flag, buried or moved an enemy unit, and how
+//! it changed the user's lead at the flag.
 //!
 //!   cargo run --release --example flag_moves -- [CARD] [GAMES] [AGENT]
 //!
@@ -50,9 +52,8 @@ fn main() {
         .unwrap_or_else(|| panic!("no card called {name}"));
     let games: u64 = args.get(1).map_or(20, |s| s.parse().unwrap());
     let spec = args.get(2).cloned().unwrap_or_else(|| "mcts:400x4".into());
-    let swap = d.powers.iter().position(|p| p.name == "Swap");
     let mut causes: BTreeMap<String, Tally> = BTreeMap::new();
-    let mut swap_targets: BTreeMap<&str, u32> = BTreeMap::new();
+    let mut uses: BTreeMap<&str, Tally> = BTreeMap::new();
     let mut turns = 0;
     for seed in 0..games {
         let (mut game, _) = Game::new(Options {
@@ -101,23 +102,39 @@ fn main() {
                 c[seat] as i64 - c[1 - seat] as i64
             };
             let flag_moved = game.flag_cell() != start.flag_cell();
-            if power.is_some() && power == swap {
+            if power == Some(card) {
+                let tops = |g: &Game| g.top_units().iter().map(|u| u.id).collect::<Vec<_>>();
+                let (top_before, top_after) = (tops(start), tops(&game));
+                let enemy = |id: &u32| {
+                    start
+                        .units
+                        .iter()
+                        .find(|u| u.id == *id)
+                        .is_some_and(|u| u.owner.is_some_and(|o| o != seat))
+                };
+                let buried_enemy = top_before.iter().any(|id| {
+                    enemy(id) && !top_after.contains(id) && game.units.iter().any(|u| u.id == *id)
+                });
                 let moved_enemy = start.units.iter().any(|u| {
-                    u.owner.is_some_and(|o| o != seat)
+                    enemy(&u.id)
                         && game
                             .units
                             .iter()
                             .find(|v| v.id == u.id)
                             .is_some_and(|v| v.cell != u.cell)
                 });
-                let target = if flag_moved {
-                    "the flag"
+                let kind = if flag_moved {
+                    "moved the flag"
+                } else if buried_enemy {
+                    "buried an enemy unit"
                 } else if moved_enemy {
-                    "an enemy unit"
+                    "moved an enemy unit"
                 } else {
-                    "a friendly unit"
+                    "other"
                 };
-                *swap_targets.entry(target).or_default() += 1;
+                let t = uses.entry(kind).or_default();
+                t.moves += 1;
+                t.gain += margin(&game) - margin(start);
             }
             if matches!(action, Action::EndTurn { .. }) {
                 turns += 1;
@@ -153,13 +170,15 @@ fn main() {
             t.gain as f64 / t.moves.max(1) as f64
         );
     }
-    let total: u32 = swap_targets.values().sum();
+    let total: u32 = uses.values().map(|t| t.moves).sum();
     if total > 0 {
-        println!("  Swap was used {total} times:");
-        for (target, n) in &swap_targets {
+        println!("  {} was used {total} times:", d.powers[card].name);
+        for (kind, t) in &uses {
             println!(
-                "    with {target}: {n} ({:.0}%)",
-                100.0 * *n as f64 / total as f64
+                "    {kind:<22} {:>4} ({:.0}%), avg change in the user's flag lead {:+.2}",
+                t.moves,
+                100.0 * t.moves as f64 / total as f64,
+                t.gain as f64 / t.moves.max(1) as f64
             );
         }
     }

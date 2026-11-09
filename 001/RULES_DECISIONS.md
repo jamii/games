@@ -230,6 +230,11 @@ Tests for most of these are in `src/rules/tests.rs`.
   take the *Flag* power itself, making the trader's unit the flag. With the *Flag* power
   not tradeable as well (also part of `--fixed-flag`), Trade drops to +2.
 
+- **Do buried units count at the flag?** We decided they don't (see "Units, stacks and
+  home spaces"), but the rules text doesn't say. It matters: with that reading *Climb* is
+  worth +20 percentage points in hand, because climbing onto an enemy next to the flag
+  takes it out of the count (see BOT.md, "Cards").
+
 - Rule details from the playtesting notes that aren't in the rules text, like "first player
   doesn't draw on their first turn" and the second player's starting points, are options in
   the **New game** dialog.
