@@ -218,10 +218,9 @@ impl Agent for RandomAgent {
 
 /// The result of applying an action, as `seat` would judge it.
 fn judge(game: &Game, seat: Seat, action: &Action) -> f32 {
-    let mut next = game.clone();
-    match next.apply(seat, action) {
-        Ok(_) => evaluate(&next, seat),
-        Err(_) => -2.0,
+    match game.after(seat, action) {
+        Some(next) => evaluate(&next, seat),
+        None => -2.0,
     }
 }
 

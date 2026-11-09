@@ -712,9 +712,22 @@ impl Game {
                 if self.pending.is_some() {
                     return Err(hard("Answer the current question first."));
                 }
-                let base = Box::new(self.clone());
                 let was_main = self.phase == Phase::Main;
-                let log = self.settle(base, action.clone(), seat, Vec::new())?;
+                // Most actions need no answers: try resolving on a single copy
+                // first, and only set up a prompt if one is needed.
+                let (result, game, log) = run(self, action, seat, &[]);
+                let log = match result {
+                    Ok(()) => {
+                        *self = game;
+                        self.pending = None;
+                        log
+                    }
+                    Err(Stop::Illegal(message)) => return Err(hard(message)),
+                    Err(Stop::Need(..)) => {
+                        let base = Box::new(self.clone());
+                        self.settle(base, action.clone(), seat, Vec::new())?
+                    }
+                };
                 if was_main && self.phase == Phase::Main && self.current == seat {
                     self.actions_this_turn += 1;
                 }
@@ -927,6 +940,21 @@ impl Game {
             Phase::Over { .. } => {}
         }
         out
+    }
+
+    /// The game after `seat` takes `action`, without changing this one: the
+    /// finished result, or the game as it stands at the action's first prompt.
+    /// None if the action is illegal. (For bots judging their options.)
+    pub fn after(&self, seat: Seat, action: &Action) -> Option<Game> {
+        if self.pending.is_some() {
+            let mut next = self.clone();
+            return next.apply(seat, action).ok().map(|_| next);
+        }
+        match run(self, action, seat, &[]) {
+            (Ok(()), game, _) => Some(game),
+            (Err(Stop::Need(_, preview)), _, _) => Some(*preview),
+            (Err(Stop::Illegal(_)), _, _) => None,
+        }
     }
 
     /// The prompt waiting for an answer, if any.
