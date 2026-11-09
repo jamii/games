@@ -144,7 +144,7 @@ variant (`cards-fixed-flag/`):
 <!-- cards -->
 | card | worth in hand (points) | with the stage 2 bot | with the flag fixed | relative lift (points) | learned value (log-odds) |
 |---|---|---|---|---|---|
-| Swap | **+31.3 ± 8.1** |  | +6.8 ± 9.1 | +3 | +0.49 |
+| Swap | **+31.3 ± 8.1** | **+11.5 ± 8.8** | +6.8 ± 9.1 | +3 | +0.49 |
 | Heavy | **+29.6 ± 8.7** | **+19.0 ± 9.4** | +0.0 ± 7.2 | +15 | +0.51 |
 | Remote | **+11.7 ± 6.8** |  |  | +19 | +0.65 |
 | Bully | **+9.1 ± 7.7** |  |  | -1 | -0.64 |
