@@ -142,6 +142,7 @@ where it excludes 0; rebuilt by `tools/card_table.py`):
 <!-- cards -->
 | card | worth in hand (points) | relative lift (points) | learned value (log-odds) |
 |---|---|---|---|
+| Swap | **+31.3 ± 8.1** | +3 | +0.49 |
 | Remote | **+11.7 ± 6.8** | +19 | +0.65 |
 | Bully | **+9.1 ± 7.7** | -1 | -0.64 |
 | Forbid | **+8.0 ± 7.4** | -8 | -0.23 |
@@ -152,6 +153,15 @@ where it excludes 0; rebuilt by `tools/card_table.py`):
 | Bungee | -3.0 ± 7.6 | -13 | -0.21 |
 | Explosive | -4.0 ± 6.7 | +11 | +0.72 |
 <!-- /cards -->
+
+**Swap is a balance problem.** In hand it's worth +31 points (the second
+player's win rate goes from 40% to 72%), three times any other card measured,
+and the stage 2 bot drafts it 79% of the times it's offered. The reason
+(`examples/swap_usage.rs`): 68% of the bots' swaps are with the flag. The
+*Flag* card only limits the flag to one space per turn, so Swap moves the flag
+next to your units, every turn, gaining 1.4 in flag lead per swap on average.
+Possible fixes: the flag can't be swapped (or moved by powers at all), or
+Swap only targets units of the same kind (unit for unit).
 
 **The correlational measures are unreliable**: they rated Forbid and Bully
 weak (both are among the strongest cards in hand), and Trail and Explosive
