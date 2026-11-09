@@ -14,7 +14,10 @@
 # environment: WINDOW (generations of samples to train on, default 4), EPOCHS
 # (default 4; 12 for generation 0), EVAL_GAMES (default 100), TRAIN_ARGS
 # (extra arguments for tools/train.py, eg "--device cuda --d 128 --layers 4"),
-# THREADS (self-play threads, default all cores), PYTHON (with PyTorch).
+# THREADS (self-play threads, default all cores), PYTHON (with PyTorch),
+# INIT_NET (start from this network instead of imitating mcts:400x4, eg
+# bots/net.json to continue a run on another machine; generation 0 then plays
+# with it).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 dir=${1:?usage: tools/alphazero.sh DIR [GENERATIONS] [GAMES] [SEARCH]}
@@ -30,6 +33,16 @@ cargo build --release --bin selfplay
 selfplay="./target/release/selfplay ${THREADS:+--threads $THREADS}"
 
 # Seeds: generation g uses g*100000 onwards, the yardstick 900000+g*1000.
+if [ -n "${INIT_NET:-}" ] && [ ! -s "$dir/net0.json" ]; then
+    cp "$INIT_NET" "$dir/net0.json"
+fi
+if [ ! -s "$dir/gen0.jsonl" ] && [ -s "$dir/net0.json" ]; then
+    echo "== generation 0: $games games of mctsN:$search with $INIT_NET"
+    $selfplay --games "$games" --first-seed 0 --net "$dir/net0.json" --agents "mctsN:$search,mctsN:$search" \
+        --noise 0.25 --explore-turns 2 --max-turns 60 --variant gen0 --out "$dir/gen0-games.jsonl" \
+        --samples "$dir/gen0.jsonl.part" 2> "$dir/gen0.log"
+    mv "$dir/gen0.jsonl.part" "$dir/gen0.jsonl"
+fi
 if [ ! -s "$dir/gen0.jsonl" ]; then
     echo "== generation 0: $games games of mcts:400x4"
     $selfplay --games "$games" --first-seed 0 --agents mcts:400x4,mcts:400x4 --max-turns 60 \

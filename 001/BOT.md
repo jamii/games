@@ -299,5 +299,30 @@ To run it on a rented Linux machine:
 git clone <this repo> && cd <repo>/001
 curl https://sh.rustup.rs -sSf | sh -s -- -y && . ~/.cargo/env
 python3 -m venv ~/venv && ~/venv/bin/pip install torch numpy
-PYTHON=~/venv/bin/python tools/alphazero.sh training 50 4000 200x4
+# Continue from the committed network (the samples aren't in the repository):
+INIT_NET=bots/net.json PYTHON=~/venv/bin/python tools/alphazero.sh training 50 4000 200x4
 ```
+
+Watch `training/progress.txt` (against `mcts:400x4`) and play the newest
+network against the previous one (`selfplay --agents
+mctsN:200x4@training/netN.json,mctsN:200x4@training/netM.json`). Keep
+`THREADS` and the training threads (`TRAIN_ARGS="--threads N"`) within the
+cores you have: oversubscribing slows training twentyfold.
+
+## Next steps
+
+1. **Keep training** until the head-to-head gains stop, on a rented many-core
+   machine (above). Then grow the network (`TRAIN_ARGS="--d 128 --layers 4"`)
+   or the search (`400x4`) and see if gains resume.
+2. **Measure every card causally with the strongest bot**:
+   `tools/card_value.sh CARD 200 mctsN:200x4@bots/net.json` for each of the
+   64 cards (about 25,000 games). Cards worth more than about ±8 points in hand
+   are the balance problems; the stage 1 measures aren't reliable enough.
+3. **Settle the *Split* rule** (RULES_DECISIONS.md); the bots work around it
+   with a 16-action cap, but people won't.
+4. **Play the bot** (Add a bot in the web app) to see whether it plays like a
+   strong human yet, and where it doesn't. Losses to people are the best guide
+   to what the training is missing.
+5. Re-run the first-player sweep with more games once the bot is stronger: 200
+   games per variant can't separate 50% from 52%.
+
