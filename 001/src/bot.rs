@@ -109,15 +109,28 @@ fn moves_itself(effect: Effect) -> bool {
     )
 }
 
-/// How good the position looks for `seat`, from -1 (lost) to 1 (won).
-pub fn evaluate(game: &Game, seat: Seat) -> f32 {
-    evaluate_with(game, seat, &Weights::default())
-}
+/// Names of the general features at the start of `features`. After them come,
+/// for each card, (my units with it) − (their units with it), then for each
+/// card, whether it's in my hand.
+pub const BASE_FEATURES: [&str; 9] = [
+    "points ahead",
+    "scoring now",
+    "flag margin",
+    "presence",
+    "units",
+    "powers",
+    "mobility",
+    "hand",
+    "my turn",
+];
 
-pub fn evaluate_with(game: &Game, seat: Seat, w: &Weights) -> f32 {
+/// What a position looks like to `seat`, as numbers: only things `seat` can
+/// see. None when the game is over, or when `seat` is about to win this turn
+/// (`Some(1.0)` from `certain`).
+pub fn features(game: &Game, seat: Seat) -> Result<Vec<f32>, f32> {
     let shown = game.pending.as_ref().map(|p| &*p.preview).unwrap_or(game);
     if let Phase::Over { winner } = shown.phase {
-        return if winner == seat { 1.0 } else { -1.0 };
+        return Err(if winner == seat { 1.0 } else { -1.0 });
     }
     let (me, them) = (seat, 1 - seat);
     let flag = shown.auto_flag_counts();
@@ -129,13 +142,16 @@ pub fn evaluate_with(game: &Game, seat: Seat, w: &Weights) -> f32 {
     }
     let target = shown.options.target_score as f32;
     if expected[me] >= target {
-        return 0.97;
+        return Err(0.97);
     }
     let need_me = target - expected[me];
     let need_them = target - expected[them];
     let scoring_now =
         (expected[me] - shown.scores[me] as f32) - (expected[them] - shown.scores[them] as f32);
 
+    let d = crate::data::data();
+    let cards = d.powers.len();
+    let mut f = vec![0f32; BASE_FEATURES.len() + 2 * cards];
     let flag_cell = shown.flag_cell();
     let (mut presence, mut units, mut powers, mut mobility) =
         ([0f32; 2], [0f32; 2], [0f32; 2], [0f32; 2]);
@@ -150,24 +166,24 @@ pub fn evaluate_with(game: &Game, seat: Seat, w: &Weights) -> f32 {
                 continue;
             }
             seen.push(p.power);
-            let active = crate::data::data().powers[p.power].kind == crate::data::Kind::Active;
+            f[BASE_FEATURES.len() + p.power] += if owner == me { 1.0 } else { -1.0 };
+            let active = d.powers[p.power].kind == crate::data::Kind::Active;
             powers[owner] += match (p.card, active) {
                 (false, _) => 0.3,
                 (true, false) => 1.0,
                 (true, true) => 1.3,
             };
         }
-        if u.powers.iter().any(|p| {
-            crate::data::data()
-                .effect(p.power)
-                .is_some_and(moves_itself)
-        }) {
+        if u.powers
+            .iter()
+            .any(|p| d.effect(p.power).is_some_and(moves_itself))
+        {
             mobility[owner] += 1.0;
         }
-        if let Some(f) = flag_cell
+        if let Some(c) = flag_cell
             && !u.is_flag()
         {
-            presence[owner] += match hex_dist(u.cell, f) {
+            presence[owner] += match hex_dist(u.cell, c) {
                 1 => 1.0,
                 2 => 0.45,
                 3 => 0.2,
@@ -175,17 +191,111 @@ pub fn evaluate_with(game: &Game, seat: Seat, w: &Weights) -> f32 {
             };
         }
     }
+    for &card in &shown.hands[me] {
+        f[BASE_FEATURES.len() + cards + card] = 1.0;
+    }
     let diff = |a: [f32; 2]| a[me] - a[them];
-    let z = w.points * (need_them - need_me)
-        + w.scoring_now * scoring_now
-        + w.flag_margin * (flag[me] as f32 - flag[them] as f32)
-        + w.presence * diff(presence)
-        + w.units * diff(units)
-        + w.powers * diff(powers)
-        + w.mobility * diff(mobility)
-        // Cards in hand are options, but there's only so much room to use them.
-        + w.hand * (shown.hands[me].len().min(6) as f32 - shown.hands[them].len().min(6) as f32);
+    f[0] = need_them - need_me;
+    f[1] = scoring_now;
+    f[2] = flag[me] as f32 - flag[them] as f32;
+    f[3] = diff(presence);
+    f[4] = diff(units);
+    f[5] = diff(powers);
+    f[6] = diff(mobility);
+    // Cards in hand are options, but there's only so much room to use them.
+    f[7] = shown.hands[me].len().min(6) as f32 - shown.hands[them].len().min(6) as f32;
+    f[8] = if shown.current == me { 1.0 } else { -1.0 };
+    Ok(f)
+}
+
+/// How good the position looks for `seat`, from -1 (lost) to 1 (won).
+pub fn evaluate(game: &Game, seat: Seat) -> f32 {
+    evaluate_with(game, seat, &Weights::default())
+}
+
+pub fn evaluate_with(game: &Game, seat: Seat, w: &Weights) -> f32 {
+    let f = match features(game, seat) {
+        Ok(f) => f,
+        Err(v) => return v,
+    };
+    let z = w.points * f[0]
+        + w.scoring_now * f[1]
+        + w.flag_margin * f[2]
+        + w.presence * f[3]
+        + w.units * f[4]
+        + w.powers * f[5]
+        + w.mobility * f[6]
+        + w.hand * f[7];
     (w.scale * z).tanh() * 0.95
+}
+
+/// An evaluation learned from self-play (tools/fit_eval.py): logistic
+/// regression on `features`, predicting whether `seat` wins.
+#[derive(Clone, Debug)]
+pub struct Learned {
+    pub weights: Vec<f32>,
+    pub bias: f32,
+}
+
+impl Learned {
+    /// Reads the JSON written by tools/fit_eval.py.
+    pub fn load(path: &str) -> Result<Learned, String> {
+        let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+        let json: serde_json::Value =
+            serde_json::from_str(&text).map_err(|e| format!("{path}: {e}"))?;
+        let weights: Vec<f32> = json["weights"]
+            .as_array()
+            .ok_or("no weights")?
+            .iter()
+            .map(|w| w.as_f64().unwrap_or(0.0) as f32)
+            .collect();
+        let expected = BASE_FEATURES.len() + 2 * crate::data::data().powers.len();
+        if weights.len() != expected {
+            return Err(format!(
+                "{path}: expected {expected} weights, found {}",
+                weights.len()
+            ));
+        }
+        Ok(Learned {
+            weights,
+            bias: json["bias"].as_f64().unwrap_or(0.0) as f32,
+        })
+    }
+
+    /// From -1 to 1, like `evaluate`.
+    pub fn evaluate(&self, game: &Game, seat: Seat) -> f32 {
+        match features(game, seat) {
+            Ok(f) => {
+                let z: f32 =
+                    self.bias + f.iter().zip(&self.weights).map(|(x, w)| x * w).sum::<f32>();
+                // 2 * sigmoid(z) - 1, kept a little away from certainty.
+                (z / 2.0).tanh() * 0.95
+            }
+            Err(v) => v,
+        }
+    }
+}
+
+/// Which evaluation a bot uses.
+#[derive(Clone, Debug)]
+pub enum Evaluator {
+    Hand(Weights),
+    Learned(std::sync::Arc<Learned>),
+}
+
+impl Default for Evaluator {
+    fn default() -> Evaluator {
+        Evaluator::Hand(Weights::default())
+    }
+}
+
+impl Evaluator {
+    pub fn evaluate(&self, game: &Game, seat: Seat) -> f32 {
+        match self {
+            Evaluator::Hand(w) => evaluate_with(game, seat, w),
+            Evaluator::Learned(l) => l.evaluate(game, seat),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -217,9 +327,9 @@ impl Agent for RandomAgent {
 }
 
 /// The result of applying an action, as `seat` would judge it.
-fn judge(game: &Game, seat: Seat, action: &Action) -> f32 {
+fn judge(eval: &Evaluator, game: &Game, seat: Seat, action: &Action) -> f32 {
     match game.after(seat, action) {
-        Some(next) => evaluate(&next, seat),
+        Some(next) => eval.evaluate(&next, seat),
         None => -2.0,
     }
 }
@@ -227,6 +337,7 @@ fn judge(game: &Game, seat: Seat, action: &Action) -> f32 {
 pub struct GreedyAgent {
     rng: Rng,
     pub action_cap: u32,
+    pub eval: Evaluator,
 }
 
 impl GreedyAgent {
@@ -234,6 +345,7 @@ impl GreedyAgent {
         GreedyAgent {
             rng: Rng::new(seed),
             action_cap: DEFAULT_ACTION_CAP,
+            eval: Evaluator::default(),
         }
     }
 }
@@ -247,7 +359,7 @@ impl Agent for GreedyAgent {
         let mut best = (f32::MIN, 0);
         for (i, action) in legal.iter().enumerate() {
             // A little noise breaks ties at random.
-            let score = judge(game, seat, action) + self.rng.unit() * 1e-3;
+            let score = judge(&self.eval, game, seat, action) + self.rng.unit() * 1e-3;
             if score > best.0 {
                 best = (score, i);
             }
@@ -273,6 +385,7 @@ pub struct MctsConfig {
     /// 0 plays the most-visited action; higher values sample more widely.
     pub temperature: f32,
     pub action_cap: u32,
+    pub eval: Evaluator,
 }
 
 impl Default for MctsConfig {
@@ -284,6 +397,7 @@ impl Default for MctsConfig {
             prior_temperature: 0.15,
             temperature: 0.0,
             action_cap: DEFAULT_ACTION_CAP,
+            eval: Evaluator::default(),
         }
     }
 }
@@ -310,13 +424,13 @@ struct Edge {
 }
 
 impl Node {
-    fn new(game: Game) -> Node {
+    fn new(game: Game, eval: &Evaluator) -> Node {
         let mover = to_move(&game);
         let terminal = match game.phase {
             Phase::Over { winner } => Some(if winner == 0 { 1.0 } else { -1.0 }),
             _ => None,
         };
-        let value = terminal.unwrap_or_else(|| evaluate(&game, 0));
+        let value = terminal.unwrap_or_else(|| eval.evaluate(&game, 0));
         Node {
             game,
             mover,
@@ -361,7 +475,7 @@ impl MctsAgent {
         // Priors: a softmax over how good each action's result looks.
         let scores: Vec<f32> = actions
             .iter()
-            .map(|a| judge(&node.game, node.mover, a))
+            .map(|a| judge(&self.config.eval, &node.game, node.mover, a))
             .collect();
         let max = scores.iter().copied().fold(f32::MIN, f32::max);
         let weights: Vec<f32> = scores
@@ -409,7 +523,7 @@ impl MctsAgent {
     /// Search one sample of the game, returning visits and values for the
     /// root's actions.
     fn search(&self, game: Game, simulations: u32) -> (Vec<Action>, Vec<u32>, Vec<f32>) {
-        let mut nodes = vec![Node::new(game)];
+        let mut nodes = vec![Node::new(game, &self.config.eval)];
         self.expand(&mut nodes, 0);
         for _ in 0..simulations {
             let mut path: Vec<(usize, usize)> = Vec::new();
@@ -435,7 +549,7 @@ impl MctsAgent {
                             break if mover == 0 { -1.0 } else { 1.0 };
                         }
                         let child = nodes.len();
-                        nodes.push(Node::new(next));
+                        nodes.push(Node::new(next, &self.config.eval));
                         nodes[index].edges[e].child = Some(child);
                         break nodes[child].terminal.unwrap_or(nodes[child].value);
                     }
@@ -469,7 +583,15 @@ impl MctsAgent {
 
 impl Agent for MctsAgent {
     fn name(&self) -> String {
-        format!("mcts{}x{}", self.config.simulations, self.config.samples)
+        let learned = if matches!(self.config.eval, Evaluator::Learned(_)) {
+            "L"
+        } else {
+            ""
+        };
+        format!(
+            "mcts{learned}:{}x{}",
+            self.config.simulations, self.config.samples
+        )
     }
 
     fn choose(&mut self, game: &Game, seat: Seat) -> Action {
