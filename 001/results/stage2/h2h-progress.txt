@@ -3,3 +3,4 @@
 [100/100] seed 803099 won by 1 (1-5 in 9 turns, 4s) | totals {"mctsN:200x4@training/net2.json": 37, "mctsN:200x4@training/net3.json": 63} | 8.7 min
 [100/100] seed 804099 won by 1 (1-5 in 9 turns, 4s) | totals {"mctsN:200x4@training/net3.json": 37, "mctsN:200x4@training/net4.json": 63} | 10.2 min
 [100/100] seed 805099 won by 0 (5-2 in 9 turns, 3s) | totals {"mctsN:200x4@training/net4.json": 44, "mctsN:200x4@training/net5.json": 56} | 8.2 min
+[100/100] seed 806099 won by 0 (5-4 in 13 turns, 7s) | totals {"mctsN:200x4@training/net5.json": 42, "mctsN:200x4@training/net6.json": 58} | 8.5 min
