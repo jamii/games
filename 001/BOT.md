@@ -218,7 +218,9 @@ causal test for decisions.
 drafts (`results/stage2/draft-gen*.txt`); it comes free with self-play. By
 generation 5 its top three picks were Heavy, Swap and Trade, the three
 flag-takers, and its last was Burrow; measured causally with the same bot,
-those are worth +19, +12, +30 and −3. Use it to choose which cards to test. Running it for all
+those are worth +19, +12, +30 and −3. By generation 11 it takes each of the
+three 85–90% of the times they're offered, with Strong and Pull next. Use it
+to choose which cards to test. Running it for all
 64 cards is about 25,000 games: a couple of hours on a rented 32-thread
 machine, a few dollars. Doing it with the stage 2 bot
 (`tools/card_value.sh CARD 200 mctsN:200x4@bots/net.json`) would measure the
