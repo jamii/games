@@ -219,6 +219,13 @@ Tests for most of these are in `src/rules/tests.rs`.
   activated on the turn they're created, or *Split* can't give itself away.
   (Bots cap themselves at 16 actions per turn, which hides this in experiments.)
 
+- **Powers that move the flag look too strong.** The *Flag* card lets the flag be
+  moved one space per turn, so *Swap* (swap places with it) and *Heavy* (pull it in at
+  the end of your turn) drag it towards your units; with either card in hand a player
+  wins about 30 percentage points more often (see BOT.md, "Cards"). Options: no power
+  can move the flag (`selfplay --fixed-flag` plays this way, to measure the effect), or
+  only its holder can.
+
 - Rule details from the playtesting notes that aren't in the rules text, like "first player
   doesn't draw on their first turn" and the second player's starting points, are options in
   the **New game** dialog.
