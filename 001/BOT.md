@@ -166,7 +166,9 @@ own units. 68% of the bots' swaps are with the flag (gaining 1.4 in flag lead
 each), and Heavy pulls the flag at the end of the turn, gaining 2.2 in flag
 lead each time, right before scoring. Pull does the same, less often.
 Possible fixes: the flag can't be moved by powers at all, or only by its own
-holder.
+holder. **Testing the first** (`selfplay --fixed-flag`, `cards-fixed-flag/`):
+with the flag fixed in place, Swap in hand is worth +6.8 ± 9.1 points instead
+of +31.3, in line with other good cards. (Heavy: running.)
 
 **The correlational measures are unreliable**: they rated Forbid and Bully
 weak (both are among the strongest cards in hand), and Trail and Explosive
