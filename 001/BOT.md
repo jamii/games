@@ -189,8 +189,72 @@ TRAIN_ARGS="--device cuda --d 128 --layers 4" tools/alphazero.sh training 20 400
   the search on CPU threads. This also means **training doesn't need a big
   GPU**: the bottleneck is CPU cores for self-play.
 
-STAGE2_RESULTS
+### First results
+
+Generation 0 imitated `mcts:400x4` from 1,000 of its self-play games (127,000
+decisions), trained for 10 epochs on 4 CPU threads (about 25 s an epoch):
+
+- The network alone (`policy`, no search) picks the search's favourite action
+  56% of the time on held-out games. It beats `greedy` 65–35 but loses to
+  `mcts:400x4` 14–85: it's a good intuition, not a player.
+- **With search (`mctsN:200x4`), it beat `mcts:400x4` 74–26** over 100 games
+  (seats alternating), with half the simulations and similar time per
+  decision (40 ms against 30 ms). One round of imitation already gives a
+  stronger bot than stage 1, because the learned priors focus the search
+  far better than one-step lookahead does.
+- The value head overfits easily: every position in a game shares one result,
+  so with 1,000 games it learned which deals were won (held-out error worse
+  than guessing 0). Mixing the search's own value into the target
+  (`--q-mix 0.5`) and keeping the best held-out epoch fixed it. A target of
+  only the search's value did worse (63–37 against the same yardstick).
+
+Expert iteration from there (`tools/alphazero.sh`, 1,000 games per
+generation, `mctsN:200x4`, each new network against `mcts:400x4`):
+
+| network | won against `mcts:400x4` (100 games) |
+|---|---|
+| net0 | 74 |
+
+The web app's bot (**Add a bot**) uses `bots/net.json`, currently net0.
 
 ### Where to run it, and what it costs
 
-COSTS
+Everything so far ran on this 4-core cloud VM, without a GPU. Measured:
+
+| step | cost |
+|---|---|
+| self-play, `mctsN:200x4` | about 7 s per game per core |
+| training, default network | about 25 s per epoch per 115,000 samples on 4 cores |
+| one generation (1,000 games, 4 epochs on 4 generations of samples, 100-game yardstick) | about 40 min on 4 cores |
+
+So with this network size **the bottleneck is CPU cores for self-play, not a
+GPU**. Rent by core count:
+
+- **Many-core CPU machines** are the best value: a dedicated server (eg Hetzner
+  AX102, 16 cores/32 threads, roughly €260/month) or hourly cloud machines with
+  32–64 vCPUs (Hetzner, or the CPU instances on Vast.ai/RunPod). Hetzner
+  raised cloud prices sharply in 2026, so compare current prices; around
+  $0.01–0.03 per vCPU-hour is typical.
+- **A GPU only matters once the network grows** (width 128+, 4+ layers), for
+  training and then for batched inference during self-play (which would need
+  a batching inference server; the search currently calls the network one
+  position at a time). A single RTX 4090 or L4 on Vast.ai or RunPod (about
+  $0.35–0.90/hour) is plenty; A100/H100s and the big clouds' GPU prices aren't
+  worth it at this scale.
+
+Rough budget: AlphaZero-style training on games of this size typically needs
+a few hundred thousand self-play games. 300,000 games at 7 core-seconds is
+about 600 core-hours: a day on a 32-thread machine, about **$15–40** of rented
+CPU. If a bigger network turns out to be needed, add GPU time and the
+engineering for batched inference: perhaps **$100–300** for the project
+including experiments. Start with the small network on CPUs and grow it only
+if the yardstick results stop improving.
+
+To run it on a rented Linux machine:
+
+```bash
+git clone <this repo> && cd <repo>/001
+curl https://sh.rustup.rs -sSf | sh -s -- -y && . ~/.cargo/env
+python3 -m venv ~/venv && ~/venv/bin/pip install torch numpy
+PYTHON=~/venv/bin/python tools/alphazero.sh training 50 4000 200x4
+```
