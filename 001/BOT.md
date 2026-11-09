@@ -121,8 +121,26 @@ to cards in hand).
 
 The causal test is `tools/card_value.sh CARD`: the same deals with the card
 removed, and with it given to the second player after the draft. The
-difference in win rate is what the card is worth. It costs about 400 games
-per card.
+difference in the second player's win rate is what having the card in hand
+is worth. It costs 400 games per card (about 30 minutes on one core). Results
+so far, for cards the two measures above rated strong, weak, or disagreed on
+(`cards/`; 200 paired games each, ± is a 95% interval):
+
+| card | worth in hand | lift said | learned value said |
+|---|---|---|---|
+| Remote | **+11.7 ± 6.8** | strong | strong |
+| Forbid | **+8.0 ± 7.4** | weak | weak |
+| Phoenix | +6.1 ± 6.2 | strong | weak |
+| Trail | −0.5 ± 7.2 | strong | strong |
+| Bungee | −3.0 ± 7.6 | weak | weak |
+| Stubborn | (running) | strong | weak |
+
+**The correlational measures got Forbid and Trail backwards**, so treat them
+as pointers at most and use the causal test for decisions. Running it for all
+64 cards is about 25,000 games: a couple of hours on a rented 32-thread
+machine, a few dollars. Doing it with the stage 2 bot
+(`tools/card_value.sh CARD 200 mctsN:200x4@bots/net.json`) would measure the
+cards as a stronger player uses them.
 
 ### Rule problems found by self-play
 
