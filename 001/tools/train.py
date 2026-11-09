@@ -16,6 +16,7 @@ Needs PyTorch and numpy.
 """
 
 import argparse
+import collections
 import json
 import math
 import os
@@ -47,7 +48,8 @@ def flatten(tokens):
 
 
 def load(paths, max_samples=None):
-    samples, layout = [], None
+    # With a limit, keep the newest (the files are read in order).
+    samples, layout = collections.deque(maxlen=max_samples), None
     for path in paths:
         with open(path) as f:
             for line in f:
@@ -74,10 +76,7 @@ def load(paths, max_samples=None):
                 s.q = float(r.get("q", 0.0))
                 s.seed = r["seed"]
                 samples.append(s)
-                if max_samples and len(samples) > max_samples:
-                    # Keep the newest.
-                    samples = samples[-max_samples:]
-    return samples, layout
+    return list(samples), layout
 
 
 def offsets_of(lengths):
