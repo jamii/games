@@ -177,9 +177,11 @@ is worth. It costs 400 games per card (about 30 minutes on one core).
 
 **Every card has been measured** (all 62 except the *Flag* and *Walk*;
 `cards/`, 200 paired games each with `mcts:400x4`, ± is a 95% interval, bold
-where it excludes 0; rebuilt by `tools/card_table.py`). Some were also
-measured with the stage 2 bot (net5, `cards-net/`) and under the fixed-flag
-variant (`cards-fixed-flag/`). In summary:
+where it excludes 0; rebuilt by `tools/card_table.py`). They're being
+measured again with the best trained bot (net10, `cards-net10/`, in progress,
+strongest cards first); some were measured with an earlier one (net5,
+`cards-net/`) and under the fixed-flag variant (`cards-fixed-flag/`). In
+summary:
 
 - **Dominant (+18 to +31 points):** the cards that move the flag (Swap, Pull,
   Heavy, Lift, and Trade in a strong player's hands) and the ones that change
@@ -217,70 +219,70 @@ play, "fix the flag and give the second player 2 points" looks fair; weaker
 players may find it slightly favours the second player.
 
 <!-- cards -->
-| card | worth in hand (points) | with the stage 2 bot | with the flag fixed | relative lift (points) | learned value (log-odds) |
-|---|---|---|---|---|---|
-| Swap | **+31.3 ± 8.1** | **+11.5 ± 8.8** | +6.8 ± 9.1 | +3 | +0.49 |
-| Pull | **+30.2 ± 8.5** | **+14.0 ± 8.5** | -3.1 ± 8.0 | +0 | +0.42 |
-| Heavy | **+29.6 ± 8.7** | **+19.0 ± 9.4** | +0.0 ± 7.2 | +15 | +0.51 |
-| Trade | **+10.0 ± 8.3** | **+29.5 ± 8.8** | +1.5 ± 8.0 (stage 2 bot) | -1 | +0.02 |
-| Strong | **+22.1 ± 8.5** | **+18.5 ± 8.6** |  | +24 | +0.20 |
-| Climb | **+20.3 ± 8.0** | +3.0 ± 8.8 |  | -2 | +0.24 |
-| Weak | **+19.7 ± 8.0** | **+10.0 ± 8.6** |  | +12 | +0.23 |
-| Lift | **+17.6 ± 8.0** | **+9.0 ± 8.0** |  | +0 | -0.06 |
-| Push | **+14.6 ± 7.9** |  |  | -1 | +0.14 |
-| Bridge | **+12.6 ± 6.8** |  |  | +18 | +0.57 |
-| Spotlight | **+12.6 ± 7.5** |  |  | +5 | +0.35 |
-| Remote | **+11.7 ± 6.8** |  |  | +19 | +0.65 |
-| Chain | **+10.1 ± 7.4** |  |  | -0 | -0.44 |
-| Bully | **+9.1 ± 7.7** |  |  | -1 | -0.64 |
-| Jump | **+9.1 ± 8.2** |  |  | -7 | +0.15 |
-| Run | **+9.1 ± 8.8** |  |  | -8 | +0.31 |
-| Beam | **+8.5 ± 7.1** |  |  | -3 | +0.14 |
-| Telepath | **+8.1 ± 7.3** |  |  | +10 | -0.13 |
-| Forbid | **+8.0 ± 7.4** |  |  | -8 | -0.23 |
-| Colorblind | **+7.6 ± 7.4** |  |  | -0 | -0.14 |
-| Halo | +7.5 ± 7.6 |  |  | +0 | -0.44 |
-| Six-shooter | **+7.5 ± 6.7** |  |  | +9 | +0.11 |
-| Reach | +7.0 ± 8.0 |  |  | +1 | +0.41 |
-| Vengeance | **+7.0 ± 6.3** |  |  | +3 | -0.35 |
-| Phoenix | +6.1 ± 6.2 |  |  | +15 | -0.60 |
-| Trigger | +5.5 ± 7.8 |  |  | -3 | +0.09 |
-| Grip | +5.1 ± 5.9 |  |  | +12 | -0.66 |
-| Jammer | +4.6 ± 5.9 |  |  | +17 | -0.03 |
-| Spin | +4.5 ± 6.7 |  |  | -5 | -0.45 |
-| Catapult | +4.5 ± 7.4 |  |  | -5 | +0.42 |
-| Stalker | +4.0 ± 7.0 |  |  | +4 | -0.28 |
-| Friendly | +3.6 ± 6.2 |  |  | +12 | +0.04 |
-| Lifeguard | +3.6 ± 6.0 |  |  | +12 | +0.11 |
-| Circle | +3.5 ± 7.9 |  |  | -7 | +0.06 |
-| Rush | +3.5 ± 7.3 |  |  | -12 | -0.13 |
-| Possess | +3.1 ± 7.6 |  |  | -8 | -0.20 |
-| Twitchy | +3.0 ± 6.1 |  |  | +15 | -0.06 |
-| Fast | +3.0 ± 6.7 |  |  | +1 | +0.10 |
-| Liability | +3.0 ± 7.2 |  |  | +1 | -0.60 |
-| Mine | +3.0 ± 7.7 |  |  | -9 | -0.25 |
-| Banish | +2.5 ± 7.8 |  |  | -6 | +0.04 |
-| Dogpile | +1.0 ± 7.8 |  |  | -7 | -0.28 |
-| Recall | +1.0 ± 7.4 |  |  | -8 | +0.06 |
-| Convert | +0.5 ± 7.2 |  |  | -5 | +0.13 |
-| Vacuum | +0.5 ± 7.1 |  |  | +12 | -0.55 |
-| Backstab | +0.0 ± 7.8 |  |  | -5 | -0.52 |
-| Trail | -0.5 ± 7.2 |  |  | +17 | +0.65 |
-| Stinky | -1.0 ± 7.6 |  |  | -4 | -0.22 |
-| Leader | -1.0 ± 7.0 |  |  | -2 | +0.21 |
-| Nuke | -1.0 ± 7.5 |  |  | -8 | -0.09 |
-| Click Click | -1.5 ± 7.6 |  |  | -5 | -0.20 |
-| Recycle | -1.5 ± 6.5 |  |  | +13 | -1.00 |
-| Stubborn | -1.5 ± 6.4 |  |  | +16 | -0.38 |
-| Pacifist | -2.0 ± 7.0 |  |  | +15 | +0.38 |
-| Burrow | -2.5 ± 8.0 | -3.0 ± 8.6 |  | -11 | -0.04 |
-| Neutralize | -2.5 ± 7.8 |  |  | -9 | -0.24 |
-| Spiky | -2.5 ± 6.9 |  |  | +11 | +0.46 |
-| Split | -2.5 ± 8.2 |  |  | -8 | +0.25 |
-| Bungee | -3.0 ± 7.6 |  |  | -13 | -0.21 |
-| Explosive | -4.0 ± 6.7 |  |  | +11 | +0.72 |
-| Mystery | -4.0 ± 7.4 |  |  | -5 | +0.34 |
-| Stun | -6.5 ± 8.0 |  |  | -7 | -0.15 |
+| card | worth in hand (points) | with the trained bot (net10) | with net5 | with the flag fixed | relative lift (points) | learned value (log-odds) |
+|---|---|---|---|---|---|---|
+| Swap | **+31.3 ± 8.1** | **+9.5 ± 8.9** | **+11.5 ± 8.8** | +6.8 ± 9.1 | +3 | +0.49 |
+| Pull | **+30.2 ± 8.5** |  | **+14.0 ± 8.5** | -3.1 ± 8.0 | +0 | +0.42 |
+| Heavy | **+29.6 ± 8.7** |  | **+19.0 ± 9.4** | +0.0 ± 7.2 | +15 | +0.51 |
+| Trade | **+10.0 ± 8.3** |  | **+29.5 ± 8.8** | +1.5 ± 8.0 (stage 2 bot) | -1 | +0.02 |
+| Strong | **+22.1 ± 8.5** |  | **+18.5 ± 8.6** |  | +24 | +0.20 |
+| Climb | **+20.3 ± 8.0** |  | +3.0 ± 8.8 |  | -2 | +0.24 |
+| Weak | **+19.7 ± 8.0** |  | **+10.0 ± 8.6** |  | +12 | +0.23 |
+| Lift | **+17.6 ± 8.0** |  | **+9.0 ± 8.0** |  | +0 | -0.06 |
+| Push | **+14.6 ± 7.9** |  |  |  | -1 | +0.14 |
+| Bridge | **+12.6 ± 6.8** |  |  |  | +18 | +0.57 |
+| Spotlight | **+12.6 ± 7.5** |  |  |  | +5 | +0.35 |
+| Remote | **+11.7 ± 6.8** |  |  |  | +19 | +0.65 |
+| Chain | **+10.1 ± 7.4** |  |  |  | -0 | -0.44 |
+| Bully | **+9.1 ± 7.7** |  |  |  | -1 | -0.64 |
+| Jump | **+9.1 ± 8.2** |  |  |  | -7 | +0.15 |
+| Run | **+9.1 ± 8.8** |  |  |  | -8 | +0.31 |
+| Beam | **+8.5 ± 7.1** |  |  |  | -3 | +0.14 |
+| Telepath | **+8.1 ± 7.3** |  |  |  | +10 | -0.13 |
+| Forbid | **+8.0 ± 7.4** |  |  |  | -8 | -0.23 |
+| Colorblind | **+7.6 ± 7.4** |  |  |  | -0 | -0.14 |
+| Halo | +7.5 ± 7.6 |  |  |  | +0 | -0.44 |
+| Six-shooter | **+7.5 ± 6.7** |  |  |  | +9 | +0.11 |
+| Reach | +7.0 ± 8.0 |  |  |  | +1 | +0.41 |
+| Vengeance | **+7.0 ± 6.3** |  |  |  | +3 | -0.35 |
+| Phoenix | +6.1 ± 6.2 |  |  |  | +15 | -0.60 |
+| Trigger | +5.5 ± 7.8 |  |  |  | -3 | +0.09 |
+| Grip | +5.1 ± 5.9 |  |  |  | +12 | -0.66 |
+| Jammer | +4.6 ± 5.9 |  |  |  | +17 | -0.03 |
+| Spin | +4.5 ± 6.7 |  |  |  | -5 | -0.45 |
+| Catapult | +4.5 ± 7.4 |  |  |  | -5 | +0.42 |
+| Stalker | +4.0 ± 7.0 |  |  |  | +4 | -0.28 |
+| Friendly | +3.6 ± 6.2 |  |  |  | +12 | +0.04 |
+| Lifeguard | +3.6 ± 6.0 |  |  |  | +12 | +0.11 |
+| Circle | +3.5 ± 7.9 |  |  |  | -7 | +0.06 |
+| Rush | +3.5 ± 7.3 |  |  |  | -12 | -0.13 |
+| Possess | +3.1 ± 7.6 |  |  |  | -8 | -0.20 |
+| Twitchy | +3.0 ± 6.1 |  |  |  | +15 | -0.06 |
+| Fast | +3.0 ± 6.7 |  |  |  | +1 | +0.10 |
+| Liability | +3.0 ± 7.2 |  |  |  | +1 | -0.60 |
+| Mine | +3.0 ± 7.7 |  |  |  | -9 | -0.25 |
+| Banish | +2.5 ± 7.8 |  |  |  | -6 | +0.04 |
+| Dogpile | +1.0 ± 7.8 |  |  |  | -7 | -0.28 |
+| Recall | +1.0 ± 7.4 |  |  |  | -8 | +0.06 |
+| Convert | +0.5 ± 7.2 |  |  |  | -5 | +0.13 |
+| Vacuum | +0.5 ± 7.1 |  |  |  | +12 | -0.55 |
+| Backstab | +0.0 ± 7.8 |  |  |  | -5 | -0.52 |
+| Trail | -0.5 ± 7.2 |  |  |  | +17 | +0.65 |
+| Stinky | -1.0 ± 7.6 |  |  |  | -4 | -0.22 |
+| Leader | -1.0 ± 7.0 |  |  |  | -2 | +0.21 |
+| Nuke | -1.0 ± 7.5 |  |  |  | -8 | -0.09 |
+| Click Click | -1.5 ± 7.6 |  |  |  | -5 | -0.20 |
+| Recycle | -1.5 ± 6.5 |  |  |  | +13 | -1.00 |
+| Stubborn | -1.5 ± 6.4 |  |  |  | +16 | -0.38 |
+| Pacifist | -2.0 ± 7.0 |  |  |  | +15 | +0.38 |
+| Burrow | -2.5 ± 8.0 |  | -3.0 ± 8.6 |  | -11 | -0.04 |
+| Neutralize | -2.5 ± 7.8 |  |  |  | -9 | -0.24 |
+| Spiky | -2.5 ± 6.9 |  |  |  | +11 | +0.46 |
+| Split | -2.5 ± 8.2 |  |  |  | -8 | +0.25 |
+| Bungee | -3.0 ± 7.6 |  |  |  | -13 | -0.21 |
+| Explosive | -4.0 ± 6.7 |  |  |  | +11 | +0.72 |
+| Mystery | -4.0 ± 7.4 |  |  |  | -5 | +0.34 |
+| Stun | -6.5 ± 8.0 |  |  |  | -7 | -0.15 |
 <!-- /cards -->
 
 **Swap and Heavy are balance problems, and the cause is moving the flag.**

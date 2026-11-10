@@ -74,17 +74,19 @@ def worth(directory):
 
 
 stage1, stage2, fixed = worth("cards"), worth("cards-net"), worth("cards-fixed-flag")
+best = worth("cards-net10")
 for card, (m, text) in worth("cards-fixed-flag-net").items():
     fixed.setdefault(card, (m, f"{text} (stage 2 bot)"))
 rows = []
-for card in set(stage1) | set(stage2) | set(fixed):
-    m = max(v[card][0] for v in (stage1, stage2) if card in v) if card in stage1 or card in stage2 else 0
+for card in set(stage1) | set(stage2) | set(fixed) | set(best):
+    m = max(v[card][0] for v in (stage1, stage2, best) if card in v) if card in stage1 or card in stage2 or card in best else 0
     rel = 100 * (lift[card] / count[card] - mean) if count[card] else float("nan")
-    cells = [d.get(card, (0, ""))[1] for d in (stage1, stage2, fixed)]
+    cells = [d.get(card, (0, ""))[1] for d in (stage1, best, stage2, fixed)]
     rows.append((m, f"| {card} | {' | '.join(cells)} | {rel:+.0f} | {learned.get(card, float('nan')):+.2f} |"))
 rows.sort(key=lambda r: (-round(r[0], 4), r[1]))
-table = ("| card | worth in hand (points) | with the stage 2 bot | with the flag fixed | relative lift (points) "
-         "| learned value (log-odds) |\n|---|---|---|---|---|---|\n" + "\n".join(r for _, r in rows))
+table = ("| card | worth in hand (points) | with the trained bot (net10) | with net5 | with the flag fixed "
+         "| relative lift (points) | learned value (log-odds) |\n|---|---|---|---|---|---|---|\n"
+         + "\n".join(r for _, r in rows))
 path = os.path.join(root, "BOT.md")
 text = open(path).read()
 text = re.sub(r"<!-- cards -->.*<!-- /cards -->", lambda _: f"<!-- cards -->\n{table}\n<!-- /cards -->", text,
