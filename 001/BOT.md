@@ -24,6 +24,9 @@ balance problems. The plan has two stages:
   we read "buried units don't count at the flag", which the rules text doesn't
   settle. If they do count, Climb drops to +9, in line with other good cards.
   See RULES_DECISIONS.md, "Not decided yet".
+- **If you fix the flag, give the second player 2 points.** Without the
+  flag-moving cards the first player's edge grows; with the stronger bot, 2
+  starting points bring it back to 50%. See [Cards](#cards).
 - **The first player's advantage is small.** With the stronger bot, the current
   rule (second player starts with 1 point) gives 50% (44–57%); with no
   compensation it's 55%. See [First player advantage](#first-player-advantage).
