@@ -220,8 +220,8 @@ Tests for most of these are in `src/rules/tests.rs`.
   (Bots cap themselves at 16 actions per turn, which hides this in experiments.)
 
 - **Powers that move the flag look too strong.** The *Flag* card lets the flag be
-  moved one space per turn, so *Swap* (swap places with it) and *Heavy* (pull it in at
-  the end of your turn) drag it towards your units; with either card in hand a player
+  moved one space per turn, so *Swap* (swap places with it), *Heavy* (pull it in at
+  the end of your turn), *Pull* and *Lift* drag it towards your units; with either card in hand a player
   wins about 30 percentage points more often (see BOT.md, "Cards"). Options: no power
   can move the flag, or only its holder can. Measured with `selfplay --fixed-flag` (no
   power can move it): Swap drops to +7, Heavy to 0 and *Pull* (also +30) to −3, in line
