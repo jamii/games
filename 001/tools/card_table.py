@@ -82,7 +82,7 @@ for card in set(stage1) | set(stage2) | set(fixed):
     rel = 100 * (lift[card] / count[card] - mean) if count[card] else float("nan")
     cells = [d.get(card, (0, ""))[1] for d in (stage1, stage2, fixed)]
     rows.append((m, f"| {card} | {' | '.join(cells)} | {rel:+.0f} | {learned.get(card, float('nan')):+.2f} |"))
-rows.sort(key=lambda r: -r[0])
+rows.sort(key=lambda r: (-round(r[0], 4), r[1]))
 table = ("| card | worth in hand (points) | with the stage 2 bot | with the flag fixed | relative lift (points) "
          "| learned value (log-odds) |\n|---|---|---|---|---|---|\n" + "\n".join(r for _, r in rows))
 path = os.path.join(root, "BOT.md")
