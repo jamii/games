@@ -236,7 +236,8 @@ Tests for most of these are in `src/rules/tests.rs`.
   home spaces"), but the rules text doesn't say. It matters: with that reading *Climb* is
   worth +20 percentage points in hand, because climbing onto an enemy next to the flag
   takes it out of the count (see BOT.md, "Cards"). With buried units counting
-  (`selfplay --buried-count`), Climb drops to +9, in line with other good cards.
+  (`selfplay --buried-count`), Climb drops to +9, in line with other good cards. With
+  the stronger bot it's only +3 either way, so this matters mostly for weaker players.
 
 - Rule details from the playtesting notes that aren't in the rules text, like "first player
   doesn't draw on their first turn" and the second player's starting points, are options in

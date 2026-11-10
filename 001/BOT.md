@@ -17,13 +17,16 @@ balance problems. The plan has two stages:
   (*Swap*, *Pull*, *Heavy*, *Lift*) or take the *Flag* power (*Trade*) are
   each worth +18 to +31 percentage points of win rate; so are the ones that
   change the count next to it (*Strong*, *Weak*). Five more are worth +10 to
-  +15, and the other ~45 are within about ±8 of zero. With the flag fixed in
-  place and the *Flag* power not tradeable, the four flag-movers we re-measured
-  drop back in line. See [Cards](#cards) and RULES_DECISIONS.md.
-- **Climb (+20 points in hand) needs a rules decision**: it's strong because
-  we read "buried units don't count at the flag", which the rules text doesn't
-  settle. If they do count, Climb drops to +9, in line with other good cards.
-  See RULES_DECISIONS.md, "Not decided yet".
+  +15, and the other ~45 are within about ±8 of zero. With the stronger stage 2
+  bot on both sides the effects shrink but the ranking holds (Trade +30, Heavy
+  +19, Strong +19, Pull +14, Swap +12, Weak +10, Lift +9). With the flag fixed
+  in place and the *Flag* power not tradeable, the four flag-movers we
+  re-measured drop back in line. See [Cards](#cards) and RULES_DECISIONS.md.
+- **Climb needs a rules decision, but it's less urgent**: it's worth +20
+  against the stage 1 bot because we read "buried units don't count at the
+  flag", which the rules text doesn't settle (if they do count, it drops to +9).
+  Against the stronger bot it's only +3: good players avoid being buried. See
+  RULES_DECISIONS.md, "Not decided yet".
 - **If you fix the flag, give the second player 2 points.** Without the
   flag-moving cards the first player's edge grows; with the stronger bot, 2
   starting points bring it back to 50%. See [Cards](#cards).
@@ -182,6 +185,9 @@ variant (`cards-fixed-flag/`). In summary:
 - **Strong (+10 to +15):** Push, Bridge, Spotlight, Remote, Chain.
 - **Everything else** (about 45 cards) is within about ±8 points of zero:
   200 games can't tell them apart, and none is measurably bad.
+- **With the stage 2 bot** (top cards only) the effects shrink but stay
+  significant: Trade +29.5, Heavy +19.0, Strong +18.5, Pull +14.0, Swap
+  +11.5, Weak +10.0, Lift +9.0; Climb drops to +3.0.
 
 So the game's balance problems are concentrated in one place, the flag: what
 moves it, and what changes who counts next to it. Fix the flag first, then
@@ -212,13 +218,13 @@ players may find it slightly favours the second player.
 | card | worth in hand (points) | with the stage 2 bot | with the flag fixed | relative lift (points) | learned value (log-odds) |
 |---|---|---|---|---|---|
 | Swap | **+31.3 ± 8.1** | **+11.5 ± 8.8** | +6.8 ± 9.1 | +3 | +0.49 |
-| Pull | **+30.2 ± 8.5** |  | -3.1 ± 8.0 | +0 | +0.42 |
+| Pull | **+30.2 ± 8.5** | **+14.0 ± 8.5** | -3.1 ± 8.0 | +0 | +0.42 |
 | Heavy | **+29.6 ± 8.7** | **+19.0 ± 9.4** | +0.0 ± 7.2 | +15 | +0.51 |
 | Trade | **+10.0 ± 8.3** | **+29.5 ± 8.8** | +1.5 ± 8.0 (stage 2 bot) | -1 | +0.02 |
-| Strong | **+22.1 ± 8.5** |  |  | +24 | +0.20 |
-| Climb | **+20.3 ± 8.0** |  |  | -2 | +0.24 |
-| Weak | **+19.7 ± 8.0** |  |  | +12 | +0.23 |
-| Lift | **+17.6 ± 8.0** |  |  | +0 | -0.06 |
+| Strong | **+22.1 ± 8.5** | **+18.5 ± 8.6** |  | +24 | +0.20 |
+| Climb | **+20.3 ± 8.0** | +3.0 ± 8.8 |  | -2 | +0.24 |
+| Weak | **+19.7 ± 8.0** | **+10.0 ± 8.6** |  | +12 | +0.23 |
+| Lift | **+17.6 ± 8.0** | **+9.0 ± 8.0** |  | +0 | -0.06 |
 | Push | **+14.6 ± 7.9** |  |  | -1 | +0.14 |
 | Bridge | **+12.6 ± 6.8** |  |  | +18 | +0.57 |
 | Spotlight | **+12.6 ± 7.5** |  |  | +5 | +0.35 |
@@ -310,7 +316,9 @@ there. The rules text only says buried units can't be targeted or activated;
 "buried units don't score" is our reading (RULES_DECISIONS.md, "Units, stacks
 and home spaces"). Measured with buried units still counting at the flag
 (`selfplay --buried-count`, `cards-buried-count/`), Climb is worth +8.6 ± 8.7:
-in line with the other good cards. So that reading fixes it.
+in line with the other good cards. So that reading fixes it. And with the
+stage 2 bot on both sides it's only +3.0 ± 8.8 even under our reading: a
+strong opponent avoids getting buried next to the flag.
 
 Strong (+22.1 ± 8.5) and Weak (+19.7 ± 8.0) are direct changes to the count
 at the flag (a unit with Strong counts twice; Weak's target counts one less),
