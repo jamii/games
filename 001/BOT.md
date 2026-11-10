@@ -181,9 +181,9 @@ variant (`cards-fixed-flag/`):
 | Weak | **+19.7 ± 8.0** |  |  | +12 | +0.23 |
 | Push | **+14.6 ± 7.9** |  |  | -1 | +0.14 |
 | Remote | **+11.7 ± 6.8** |  |  | +19 | +0.65 |
-| Jump | **+9.1 ± 8.2** |  |  | -7 | +0.15 |
 | Run | **+9.1 ± 8.8** |  |  | -8 | +0.31 |
 | Bully | **+9.1 ± 7.7** |  |  | -1 | -0.64 |
+| Jump | **+9.1 ± 8.2** |  |  | -7 | +0.15 |
 | Forbid | **+8.0 ± 7.4** |  |  | -8 | -0.23 |
 | Reach | +7.0 ± 8.0 |  |  | +1 | +0.41 |
 | Phoenix | +6.1 ± 6.2 |  |  | +15 | -0.60 |
@@ -199,6 +199,7 @@ variant (`cards-fixed-flag/`):
 | Split | -2.5 ± 8.2 |  |  | -8 | +0.25 |
 | Bungee | -3.0 ± 7.6 |  |  | -13 | -0.21 |
 | Explosive | -4.0 ± 6.7 |  |  | +11 | +0.72 |
+| Mystery | -4.0 ± 7.4 |  |  | -5 | +0.34 |
 <!-- /cards -->
 
 **Swap and Heavy are balance problems, and the cause is moving the flag.**
