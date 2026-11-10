@@ -21,6 +21,23 @@ and otherwise the hand-made search. Environment variables: `BOT_NET` (another ne
 `BOT_SEARCH` (search size, default `400x4`; bigger is stronger and slower) and
 `BOT_DELAY_MS` (pause before each of its actions, default 700, so you can follow them).
 
+## Single player in the browser
+
+`web/` is a version that needs no server: the rules engine and the bot (with the network
+in `bots/net.json`) are compiled to WebAssembly and run in the page, in a Web Worker.
+You play Letters against the bot. It's published as a private Claude artifact,
+[001 Solo](https://claude.ai/artifact/G66juB744M28dXyHugJiRU); share it from its Share menu.
+
+```bash
+rustup target add wasm32-unknown-unknown   # once
+tools/build_web.sh                          # builds web/dist/, a static site
+python3 -m http.server 3125 -d web/dist     # to try it locally
+```
+
+After changing the rules, the cards or the bot, rebuild and republish `web/dist/` (a new
+card set also needs a newly trained network). `web/worker.js` sets the bot's search and the
+pause before each of its actions.
+
 The board diagram is read from `rules.md` and the cards from `powers.md` (both in this
 folder) at compile time, so after editing either one, rebuild to pick up the changes.
 
@@ -85,8 +102,11 @@ to clone. `examples/legal_actions.rs` plays a few moves
 - `src/game.rs` holds the game state and the manual rules.
 - `src/rules.rs` holds the automatic rules: targeting, movement, triggers, every power,
   legal actions and prompts.
+- `src/session.rs` is a game session: the game, the seats, the log, undo and the bot. It
+  returns the messages to send, so the server and the browser build share it.
 - `src/main.rs` is the axum server: one websocket per browser, and each one gets its own
   view of the game.
+- `web/` is the single-player browser build (see above).
 - `src/bot.rs`, `src/encode.rs`, `src/net.rs`, `src/bin/selfplay.rs` and `tools/` are the
   bots and the tools for training them and running balance experiments: see
   [BOT.md](BOT.md).
@@ -113,6 +133,7 @@ browsers agree and hands stay hidden.
   phone.
 - `tests/bot_seat.js` plays a game against the server's bot (start the server with
   `BOT_DELAY_MS=50 PORT=3124`).
+- `tests/single_player.js` plays the single-player page (serve `web/dist` on port 3125).
 
 ```bash
 PORT=3123 cargo run --release &

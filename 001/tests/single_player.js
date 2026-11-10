@@ -1,0 +1,81 @@
+// Plays the single-player page (web/dist, built by tools/build_web.sh), where
+// the game and the bot run in the browser: checks that you're seated against
+// the bot, plays random legal moves until the game ends, and checks that undo
+// and a new game work and that nothing errors.
+//
+//   tools/build_web.sh && python3 -m http.server 3125 -d web/dist &
+//   node tests/single_player.js
+//
+// Options (environment variables): URL (default http://localhost:3125/), SEED.
+const { chromium } = require('playwright');
+const path = require('path');
+
+const URL = process.env.URL || 'http://localhost:3125/';
+let seed = +(process.env.SEED || 4);
+function rand() {
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+(async () => {
+  const browser = await chromium.launch();
+  const page = await (await browser.newContext({ viewport: { width: 1400, height: 1000 } })).newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.text()); });
+  await page.goto(URL);
+
+  // Seated as Letters, with the bot as Numbers, without doing anything.
+  await page.waitForFunction(() => typeof view !== 'undefined' && view && view.you === 0 && view.seats[1].bot, null, { timeout: 30000 });
+  const help = await page.textContent('#inspector');
+  if (!help.includes('against the bot')) throw new Error('the help text is the two-player one');
+  if (await page.isVisible('button[data-act=toggle-mode]')) throw new Error('the rules switch is showing');
+
+  // Undo: make an undoable move on my first main turn, undo it.
+  let undone = false;
+  let moves = 0, botTurns = 0, lastTurn = -1;
+  const started = Date.now();
+  for (;;) {
+    const s = await page.evaluate(() => ({
+      phase: view.game.phase.kind, current: view.game.current, turn: view.game.turn,
+      legal: view.game.legal || [], thinking: view.seats[1].thinking, canUndo: view.can_undo,
+    }));
+    if (s.phase === 'over' || s.turn > 60) break;
+    if (Date.now() - started > 300000) throw new Error('the game took too long');
+    if (s.current === 1 && s.turn !== lastTurn) { botTurns++; lastTurn = s.turn; }
+    if (s.canUndo && !undone) {
+      const before = await page.evaluate(() => view.log.length);
+      await page.click('button[data-act=undo]');
+      await page.waitForFunction(n => view.log.length > n && view.log[view.log.length - 1].text.includes('undid'), before);
+      undone = true;
+      continue;
+    }
+    if (s.legal.length > 0 && !s.thinking) {
+      const end = s.legal.find(a => a.type === 'end_turn');
+      const action = end && rand() < 0.25 ? end : s.legal[Math.floor(rand() * s.legal.length)];
+      const sig = await page.evaluate(() => view.log.length + ':' + JSON.stringify(view.game.units));
+      await page.evaluate(a => send({ type: 'action', action: a }), action);
+      await page.waitForFunction(sg => view.log.length + ':' + JSON.stringify(view.game.units) !== sg
+        || view.game.phase.kind === 'over', sig, { timeout: 30000 }).catch(() => {});
+      moves++;
+    } else {
+      await page.waitForTimeout(50);
+    }
+  }
+  const final = await page.evaluate(() => ({ phase: view.game.phase, scores: view.game.scores }));
+  await page.screenshot({ path: path.join(__dirname, 'screenshots', 'single-player.png') });
+  console.log(`game ${final.phase.kind}: scores ${final.scores}, my moves ${moves}, bot turns ${botTurns}, undo tested: ${undone}`);
+
+  // A new game starts with the bot still playing.
+  await page.evaluate(() => send({ type: 'new_game', options: { automatic: true, first_player: 1 } }));
+  await page.waitForFunction(() => view.game.phase.kind === 'draft' && view.game.hand_counts[1] > 0, null, { timeout: 30000 });
+
+  if (botTurns < 2) throw new Error('the bot did not take its turns');
+  if (final.phase.kind !== 'over') throw new Error('the game did not finish');
+  if (!undone) throw new Error('never got to try undo');
+  if (errors.length) throw new Error('page errors: ' + errors.join('; '));
+  console.log('single player test passed');
+  await browser.close();
+})().catch(e => { console.error(e); process.exit(1); });

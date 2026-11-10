@@ -20,3 +20,5 @@ __pycache__/
 /results/fixed-flag/*.part
 /cards-net10/*.log
 /cards-net10/*.part
+/web/target
+/web/dist

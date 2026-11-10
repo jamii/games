@@ -556,8 +556,13 @@ function helpPanel() {
   <div class="help-long">${HELP}</div>`;
 }
 
+// The single-player page (web/) runs the game in the browser against the bot.
+const SINGLE = !!window.SINGLE_PLAYER;
 const HELP = `<ul>
-    <li>Each player opens this page in their own browser and clicks <b>Play as…</b>.</li>
+    ${SINGLE
+      ? `<li>You play <b>Letters</b> against the bot, which thinks for a moment before each of its actions.
+        To swap sides, leave your seat, remove the bot, take the other seat and add the bot again.</li>`
+      : `<li>Each player opens this page in their own browser and clicks <b>Play as…</b>.</li>`}
     <li>Draft and draw by clicking a faceup card or the deck.</li>
     <li>Click one of your empty home spaces to spawn a unit.</li>
     <li>Click a card in your hand (or a free power), then one of your units in a home space, to apply it.</li>
@@ -565,11 +570,13 @@ const HELP = `<ul>
     <li><b>Automatic rules</b> carry out every power. Only legal moves are offered: spaces you can spawn in are outlined,
       units that can act have a dashed ring, and facing arrows with a green ring let the unit use a power.
       When a power needs a decision, the options are highlighted.</li>
-    <li><b>Manual rules</b> leave power effects to you: <b>drag units</b> to move them, and use the manual tools in this
+    ${SINGLE
+      ? `<li><b>Undo</b> works until you draw or end your turn. <b>New game</b> starts over.</li>`
+      : `<li><b>Manual rules</b> leave power effects to you: <b>drag units</b> to move them, and use the manual tools in this
       panel to kill units, move powers, add tokens and so on. When a rule check blocks something a power allows,
       choose <b>Do it anyway</b>.</li>
     <li>Switch between them with the rules button at the top. <b>Undo</b> works until you draw or end your turn.</li>
-    <li>To play against the computer, take a seat and click <b>Add a bot</b> on the other one (automatic rules only).</li>
+    <li>To play against the computer, take a seat and click <b>Add a bot</b> on the other one (automatic rules only).</li>`}
   </ul>`;
 
 function unitPanel(u) {

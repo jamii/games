@@ -39,7 +39,9 @@ balance problems. The plan has two stages:
   `tools/card_value.sh`.
 - **The trained bot beats the hand-made search** 98–2 (net10 against
   `mcts:400x4`) and is about 570 Elo above its first generation. You can play
-  it in the web app (**Add a bot**). Progress levelled off around generation
+  it in the web app (**Add a bot**), or with no server at all in the
+  single-player page ([001 Solo](https://claude.ai/artifact/G66juB744M28dXyHugJiRU),
+  built by `tools/build_web.sh`). Progress levelled off around generation
   10 (of 1,000 games each), even with twice the search; more games per
   generation, on more cores, is the next step
   (about $15–40 of rented CPU; a GPU isn't needed yet). See
@@ -491,7 +493,9 @@ went to measuring every card instead. The next levers are
 more games per generation (4,000+) and more search per move, which is what a
 many-core rented machine buys.
 
-The web app's bot (**Add a bot**) uses `bots/net.json`, currently net10.
+The web app's bot (**Add a bot**) and the single-player page use
+`bots/net.json`, currently net10. In the browser the bot takes about 150 ms a
+move (400x4 search), a few times slower than natively.
 
 ### Where to run it, and what it costs
 
