@@ -40,6 +40,7 @@ button {
 }
 button:hover { border-color: #8d8678; }
 button:disabled { opacity: .5; cursor: default; }
+button.unavailable { color: var(--muted); border-style: dashed; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 button.primary:hover { background: #276a2a; }
 button.danger { color: var(--danger); border-color: #e2b1b9; }

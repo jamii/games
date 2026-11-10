@@ -1421,3 +1421,24 @@ fn buried_units_count_at_the_flag_only_in_the_variant() {
         assert_eq!(counts[1], if variant { 1 } else { 0 }, "variant: {variant}");
     }
 }
+
+#[test]
+fn pull_with_colorblind_pulls_the_flag_one_space() {
+    let mut g = game();
+    let flag = g.units.iter().find(|u| u.is_flag()).unwrap().id;
+    let (fx, fy) = at(&g, flag);
+    // Next to the flag: the user steps back and the flag (and every other
+    // neutral unit) comes into its space.
+    let a = put(&mut g, Some(0), (fx - 2, fy), NE, &["Pull", "Colorblind"]);
+    let n = put(&mut g, None, (fx + 4, fy + 2), E, &["Walk"]);
+    activate(&mut g, a, NE, 0).unwrap();
+    assert_eq!(at(&g, a), (fx - 4, fy));
+    assert_eq!(at(&g, flag), (fx - 2, fy));
+    assert_eq!(at(&g, n), (fx - 2, fy), "stacked on the flag");
+    // Two spaces away: the flag can't move that far in one turn, and the
+    // refusal says so.
+    let mut g = game();
+    let a = put(&mut g, Some(0), (fx - 4, fy), E, &["Pull", "Colorblind"]);
+    let refusal = activate(&mut g, a, E, 0).unwrap_err().message;
+    assert!(refusal.contains("one space"), "{refusal}");
+}

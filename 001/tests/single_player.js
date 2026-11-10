@@ -35,16 +35,31 @@ function rand() {
 
   // Undo: make an undoable move on my first main turn, undo it.
   let undone = false;
+  // "Can't use: why?" on a power: tapping it shows the rules' reason.
+  let why = null;
   let moves = 0, botTurns = 0, lastTurn = -1;
   const started = Date.now();
   for (;;) {
     const s = await page.evaluate(() => ({
       phase: view.game.phase.kind, current: view.game.current, turn: view.game.turn,
       legal: view.game.legal || [], thinking: view.seats[1].thinking, canUndo: view.can_undo,
+      prompt: !!view.game.prompt, mine: view.game.units.filter(u => u.owner === 0).map(u => u.id),
     }));
     if (s.phase === 'over' || s.turn > 60) break;
     if (Date.now() - started > 300000) throw new Error('the game took too long');
     if (s.current === 1 && s.turn !== lastTurn) { botTurns++; lastTurn = s.turn; }
+    if (why === null && s.current === 0 && s.phase === 'main' && !s.prompt && s.legal.length && !s.thinking) {
+      for (const id of s.mine) {
+        await page.click(`.unit[data-unit="${id}"] .body`).catch(() => {});
+        const button = await page.$('#inspector button[data-act=why]');
+        if (!button) continue;
+        await button.click();
+        await page.waitForFunction(() => !document.getElementById('toast').hidden, null, { timeout: 5000 });
+        why = (await page.textContent('#toast')).trim();
+        break;
+      }
+      await page.keyboard.press('Escape');
+    }
     if (s.canUndo && !undone) {
       const before = await page.evaluate(() => view.log.length);
       await page.click('button[data-act=undo]');
@@ -67,6 +82,7 @@ function rand() {
   const final = await page.evaluate(() => ({ phase: view.game.phase, scores: view.game.scores }));
   await page.screenshot({ path: path.join(__dirname, 'screenshots', 'single-player.png') });
   console.log(`game ${final.phase.kind}: scores ${final.scores}, my moves ${moves}, bot turns ${botTurns}, undo tested: ${undone}`);
+  console.log(`"why?" on an unusable power: ${why === null ? 'never came up' : JSON.stringify(why)}`);
 
   // A new game starts with the bot still playing.
   await page.evaluate(() => send({ type: 'new_game', options: { automatic: true, first_player: 1 } }));

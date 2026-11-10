@@ -15,6 +15,23 @@ rm -rf "$out"
 mkdir -p "$out"
 cp web/target/wasm32-unknown-unknown/release/game_001_web.wasm "$out/game.wasm"
 cp static/app.js static/style.css web/worker.js web/local-socket.js "$out/"
+# Escapes for anything outside ASCII in the scripts and styles, so they read
+# right whatever encoding a server declares (\uXXXX works anywhere in JS, \XXXX
+# in CSS).
+python3 - "$out" <<'EOF'
+import os, sys
+def js(c):
+    n = ord(c)
+    if n < 0x10000:
+        return "\\u%04x" % n
+    n -= 0x10000
+    return "\\u%04x\\u%04x" % (0xd800 + (n >> 10), 0xdc00 + (n & 0x3ff))
+for name in ("app.js", "worker.js", "local-socket.js", "style.css"):
+    path = os.path.join(sys.argv[1], name)
+    text = open(path, encoding="utf-8").read()
+    esc = js if name.endswith(".js") else (lambda c: "\\%x " % ord(c))
+    open(path, "w").write("".join(c if ord(c) < 128 else esc(c) for c in text))
+EOF
 cp bots/net.json "$out/net.json"
 # The page: the web app's markup, with the stand-in socket loaded before app.js.
 # No <html>, <head> or <body>: the artifact viewer adds them.

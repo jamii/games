@@ -685,7 +685,7 @@ function autoUnitPanel(u) {
       if (pw.kind === 'active' && activations.length) {
         h += use
           ? `<button class="primary mini" data-act="use" data-index="${i}">Activate &amp; use</button>`
-          : `<button class="mini" disabled title="Can't be used facing this way${origin !== null ? ' from there' : ''}">Can't use this way</button>`;
+          : `<button class="mini unavailable" data-act="why" data-index="${i}" title="The rules don't allow it here: tap to see why">Can't use${origin !== null ? ' from there' : ''}: why?</button>`;
       }
       if (discard) h += `<button class="mini" data-act="remove-power" data-index="${i}">Discard</button>`;
       h += '</div>';
@@ -1095,6 +1095,8 @@ function handleAct(a, d) {
 
     case 'facing': ui.facing = +d.facing; render(); break;
     case 'use': if (u) act({ type: 'activate', unit: u.id, facing: ui.facing ?? u.facing, power: +d.index, origin: auto() ? ui.origin : null }); break;
+    // Try it anyway: the rules refuse, and the message says why. Keeps the chosen facing.
+    case 'why': if (u) send({ type: 'action', action: { type: 'activate', unit: u.id, facing: ui.facing ?? u.facing, power: +d.index, origin: auto() ? ui.origin : null } }); break;
     case 'activate': if (u) act({ type: 'activate', unit: u.id, facing: ui.facing ?? u.facing, power: null }); break;
     case 'remove-power': if (u) act({ type: 'remove_power', unit: u.id, index: +d.index, to_hand: false }); break;
     case 'power-to-hand': if (u) act({ type: 'remove_power', unit: u.id, index: +d.index, to_hand: true }); break;

@@ -2092,7 +2092,11 @@ impl Game {
                         continue;
                     }
                     if !self.can_move(&self.effects(), t, cell, user, true) {
-                        return illegal("A target can't be pulled into that space.");
+                        return illegal(if self.unit(t).is_flag() {
+                            "The flag can't be moved more than one space in a turn."
+                        } else {
+                            "A target can't be pulled into that space."
+                        });
                     }
                     self.do_moves(&[(t, cell)], user, ctx)?;
                 }
