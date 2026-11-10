@@ -566,9 +566,12 @@ impl MctsAgent {
 
     /// Expand a node, returning how many actions it evaluated.
     fn expand(&self, nodes: &mut [Node], index: usize) -> u64 {
-        let started = std::time::Instant::now();
+        // Only timed when debugging: browsers have no clock for Instant.
+        let started = debug().then(std::time::Instant::now);
         let work = self.expand_inner(nodes, index);
-        if debug() && started.elapsed().as_millis() > 100 {
+        if let Some(started) = started
+            && started.elapsed().as_millis() > 100
+        {
             let node = &nodes[index];
             eprintln!(
                 "slow expansion: {} ms, {} actions, {} units, phase {:?}, prompt {:?}",

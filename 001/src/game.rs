@@ -423,6 +423,21 @@ pub struct Game {
     pub(crate) public_hand: [Vec<usize>; 2],
 }
 
+/// A seed for a game that doesn't name one.
+#[cfg(not(target_arch = "wasm32"))]
+fn random_seed() -> u64 {
+    rand::random()
+}
+
+/// In a browser there's no operating system to ask for randomness: callers
+/// pass seeds (`session::Session` does). This only keeps games apart.
+#[cfg(target_arch = "wasm32")]
+fn random_seed() -> u64 {
+    static COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0x5eed);
+    let mut n = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    next_random(&mut n)
+}
+
 /// splitmix64.
 pub(crate) fn next_random(state: &mut u64) -> u64 {
     *state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
@@ -453,7 +468,7 @@ impl Game {
             return Err("Unknown first player.".into());
         }
 
-        let mut rng = options.seed.unwrap_or_else(rand::random);
+        let mut rng = options.seed.unwrap_or_else(random_seed);
         let first = options
             .first_player
             .unwrap_or_else(|| (next_random(&mut rng) % 2) as Seat);

@@ -10,3 +10,4 @@ pub mod encode;
 pub mod game;
 pub mod net;
 pub mod rules;
+pub mod session;
