@@ -12,12 +12,12 @@ balance problems. The plan has two stages:
 
 ## Key findings
 
-- **The flag is too easy to move or capture.** *Swap*, *Heavy*, *Pull* and
-  *Trade* are each worth about +20 to +30 percentage points of win rate to the
-  player holding them, far more than any other card measured, because they
-  drag the flag towards their owner (Swap, Heavy, Pull) or take the *Flag*
+- **The flag is too easy to move or capture.** *Swap*, *Heavy*, *Pull*,
+  *Lift* and *Trade* are each worth about +18 to +30 percentage points of win
+  rate to the player holding them, far more than most cards, because they drag
+  the flag towards their owner (Swap, Heavy, Pull, Lift) or take the *Flag*
   power outright (Trade). With the flag fixed in place and the *Flag* power not
-  tradeable, all four drop back in line with other cards. See
+  tradeable, the four we re-measured drop back in line with other cards. See
   [Cards](#cards) and RULES_DECISIONS.md.
 - **Climb (+20 points in hand) needs a rules decision**: it's strong because
   we read "buried units don't count at the flag", which the rules text doesn't
@@ -184,10 +184,11 @@ variant (`cards-fixed-flag/`):
 | Remote | **+11.7 ± 6.8** |  |  | +19 | +0.65 |
 | Chain | **+10.1 ± 7.4** |  |  | -0 | -0.44 |
 | Run | **+9.1 ± 8.8** |  |  | -8 | +0.31 |
-| Bully | **+9.1 ± 7.7** |  |  | -1 | -0.64 |
 | Jump | **+9.1 ± 8.2** |  |  | -7 | +0.15 |
+| Bully | **+9.1 ± 7.7** |  |  | -1 | -0.64 |
 | Beam | **+8.5 ± 7.1** |  |  | -3 | +0.14 |
 | Forbid | **+8.0 ± 7.4** |  |  | -8 | -0.23 |
+| Colorblind | **+7.6 ± 7.4** |  |  | -0 | -0.14 |
 | Halo | +7.5 ± 7.6 |  |  | +0 | -0.44 |
 | Reach | +7.0 ± 8.0 |  |  | +1 | +0.41 |
 | Phoenix | +6.1 ± 6.2 |  |  | +15 | -0.60 |
@@ -196,8 +197,8 @@ variant (`cards-fixed-flag/`):
 | Stalker | +4.0 ± 7.0 |  |  | +4 | -0.28 |
 | Circle | +3.5 ± 7.9 |  |  | -7 | +0.06 |
 | Rush | +3.5 ± 7.3 |  |  | -12 | -0.13 |
-| Fast | +3.0 ± 6.7 |  |  | +1 | +0.10 |
 | Liability | +3.0 ± 7.2 |  |  | +1 | -0.60 |
+| Fast | +3.0 ± 6.7 |  |  | +1 | +0.10 |
 | Dogpile | +1.0 ± 7.8 |  |  | -7 | -0.28 |
 | Trail | -0.5 ± 7.2 |  |  | +17 | +0.65 |
 | Stinky | -1.0 ± 7.6 |  |  | -4 | -0.22 |
@@ -234,7 +235,8 @@ the *Flag* power itself: their unit becomes the flag, which they can then
 walk towards their own units. So `--fixed-flag` also stops Trade taking the
 *Flag* power, and with that, Trade drops to +1.5 ± 8.0 with the same bot.
 **Pull is the fourth**: worth +30.2 ± 8.5 in hand, by pulling the flag into
-your unit's space, and −3.1 ± 8.0 with the flag fixed.
+your unit's space, and −3.1 ± 8.0 with the flag fixed. **Lift is the fifth**
+(+17.6 ± 8.0): 64% of its uses moved the flag, gaining 2.1 in flag lead each.
 
 **Climb (+20.3 ± 8.0) is strong for a different reason, and it depends on a
 rules decision of ours.** Every Climb in 20 games buried an enemy unit
