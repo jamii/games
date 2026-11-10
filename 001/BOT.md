@@ -12,13 +12,14 @@ balance problems. The plan has two stages:
 
 ## Key findings
 
-- **The flag is too easy to move or capture.** *Swap*, *Heavy*, *Pull*,
-  *Lift* and *Trade* are each worth about +18 to +30 percentage points of win
-  rate to the player holding them, far more than most cards, because they drag
-  the flag towards their owner (Swap, Heavy, Pull, Lift) or take the *Flag*
-  power outright (Trade). With the flag fixed in place and the *Flag* power not
-  tradeable, the four we re-measured drop back in line with other cards. See
-  [Cards](#cards) and RULES_DECISIONS.md.
+- **Balance breaks at the flag.** Every card was measured by giving it to a
+  player on the same deals. The cards that move the flag towards their owner
+  (*Swap*, *Pull*, *Heavy*, *Lift*) or take the *Flag* power (*Trade*) are
+  each worth +18 to +31 percentage points of win rate; so are the ones that
+  change the count next to it (*Strong*, *Weak*). Five more are worth +10 to
+  +15, and the other ~45 are within about ±8 of zero. With the flag fixed in
+  place and the *Flag* power not tradeable, the four flag-movers we re-measured
+  drop back in line. See [Cards](#cards) and RULES_DECISIONS.md.
 - **Climb (+20 points in hand) needs a rules decision**: it's strong because
   we read "buried units don't count at the flag", which the rules text doesn't
   settle. See RULES_DECISIONS.md, "Not decided yet".
@@ -31,8 +32,9 @@ balance problems. The plan has two stages:
   `tools/card_value.sh`.
 - **The trained bot beats the hand-made search** 98–2 (net10 against
   `mcts:400x4`) and is about 570 Elo above its first generation. You can play
-  it in the web app (**Add a bot**). Progress slowed after about 8 generations
-  of 1,000 games; more games per generation, on more cores, is the next step
+  it in the web app (**Add a bot**). Progress levelled off around generation
+  10 (of 1,000 games each), even with twice the search; more games per
+  generation, on more cores, is the next step
   (about $15–40 of rented CPU; a GPU isn't needed yet). See
   [Where to run it](#where-to-run-it-and-what-it-costs).
 - Self-play found an engine bug (offering a move that couldn't be finished)
