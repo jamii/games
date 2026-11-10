@@ -221,9 +221,9 @@ players may find it slightly favours the second player.
 <!-- cards -->
 | card | worth in hand (points) | with the trained bot (net10) | with net5 | with the flag fixed | relative lift (points) | learned value (log-odds) |
 |---|---|---|---|---|---|---|
+| Heavy | **+29.6 ± 8.7** | **+31.5 ± 8.5** | **+19.0 ± 9.4** | +0.0 ± 7.2 | +15 | +0.51 |
 | Swap | **+31.3 ± 8.1** | **+9.5 ± 8.9** | **+11.5 ± 8.8** | +6.8 ± 9.1 | +3 | +0.49 |
 | Pull | **+30.2 ± 8.5** | **+12.0 ± 8.4** | **+14.0 ± 8.5** | -3.1 ± 8.0 | +0 | +0.42 |
-| Heavy | **+29.6 ± 8.7** |  | **+19.0 ± 9.4** | +0.0 ± 7.2 | +15 | +0.51 |
 | Trade | **+10.0 ± 8.3** |  | **+29.5 ± 8.8** | +1.5 ± 8.0 (stage 2 bot) | -1 | +0.02 |
 | Strong | **+22.1 ± 8.5** |  | **+18.5 ± 8.6** |  | +24 | +0.20 |
 | Climb | **+20.3 ± 8.0** |  | +3.0 ± 8.8 |  | -2 | +0.24 |
