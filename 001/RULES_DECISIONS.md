@@ -228,7 +228,9 @@ Tests for most of these are in `src/rules/tests.rs`.
   with other cards.
   *Trade* is the same problem by another route (worth +30 to the stronger bot): it can
   take the *Flag* power itself, making the trader's unit the flag. With the *Flag* power
-  not tradeable as well (also part of `--fixed-flag`), Trade drops to +2.
+  not tradeable as well (also part of `--fixed-flag`), Trade drops to +2. Fixing the
+  flag raises the first player's edge (to 55% with the stronger bot); giving the second
+  player 2 starting points brings it back to 50%.
 
 - **Do buried units count at the flag?** We decided they don't (see "Units, stacks and
   home spaces"), but the rules text doesn't say. It matters: with that reading *Climb* is
