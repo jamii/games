@@ -135,6 +135,8 @@ struct LogEntry {
 pub struct Session {
     pub game: Game,
     log: Vec<LogEntry>,
+    /// How many log entries there have ever been, so a page can tell which are new.
+    logged: u64,
     /// Snapshots for undo, cleared whenever the turn passes or hidden cards are revealed.
     history: Vec<(Game, String)>,
     /// The token of the browser in each seat.
@@ -166,6 +168,7 @@ impl Session {
         let mut session = Session {
             game,
             log: Vec::new(),
+            logged: 0,
             history: Vec::new(),
             seats: [None, None],
             conns: BTreeMap::new(),
@@ -181,6 +184,7 @@ impl Session {
     }
 
     fn push_log(&mut self, seat: Option<Seat>, lines: Vec<String>) {
+        self.logged += lines.len() as u64;
         self.log.extend(lines.into_iter().map(|text| LogEntry {
             seat,
             text,
@@ -237,6 +241,7 @@ impl Session {
             "seats": seats,
             "game": self.game.view(seat),
             "log": log,
+            "log_total": self.logged,
             "can_undo": seat == Some(self.game.current)
                 && self.game.pending.is_none()
                 && !self.history.is_empty(),
@@ -386,6 +391,7 @@ impl Session {
                     text,
                     chat: true,
                 });
+                self.logged += 1;
                 self.push_log(None, Vec::new());
                 self.broadcast()
             }

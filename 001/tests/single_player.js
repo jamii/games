@@ -6,8 +6,11 @@
 //   tools/build_web.sh && python3 -m http.server 3125 -d web/dist &
 //   node tests/single_player.js
 //
+// Then, on a phone: everything fits on the screen without scrolling, and the
+// bot's moves are animated.
+//
 // Options (environment variables): URL (default http://localhost:3125/), SEED.
-const { chromium } = require('playwright');
+const { chromium, devices } = require('playwright');
 const path = require('path');
 
 const URL = process.env.URL || 'http://localhost:3125/';
@@ -88,6 +91,8 @@ function rand() {
   await page.evaluate(() => send({ type: 'new_game', options: { automatic: true, first_player: 1 } }));
   await page.waitForFunction(() => view.game.phase.kind === 'draft' && view.game.hand_counts[1] > 0, null, { timeout: 30000 });
 
+  await phoneCheck(browser, errors);
+
   if (botTurns < 2) throw new Error('the bot did not take its turns');
   if (final.phase.kind !== 'over') throw new Error('the game did not finish');
   if (!undone) throw new Error('never got to try undo');
@@ -95,3 +100,46 @@ function rand() {
   console.log('single player test passed');
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });
+
+// A phone: draft by tapping, watch the bot's first turn, check the layout.
+async function phoneCheck(browser, errors) {
+  const page = await (await browser.newContext(devices['Pixel 5'])).newPage();
+  page.on('pageerror', e => errors.push(`phone: ${e.message}`));
+  // The artifact viewer adds the viewport meta to the page; a plain server doesn't.
+  await page.route(URL, async route => {
+    const r = await route.fetch();
+    route.fulfill({ response: r, body: `<meta name="viewport" content="width=device-width, initial-scale=1">${await r.text()}` });
+  });
+  await page.goto(URL);
+  await page.waitForFunction(() => typeof view !== 'undefined' && view && view.you === 0 && view.seats[1].bot, null, { timeout: 30000 });
+  // Count the cards that fly and the units that move.
+  await page.evaluate(() => {
+    window.__flights = 0;
+    new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.classList && n.classList.contains('flight')) window.__flights++; })))
+      .observe(document.getElementById('fx'), { childList: true });
+  });
+  for (let i = 0; i < 200; i++) {
+    const s = await page.evaluate(() => ({ phase: view.game.phase.kind, current: view.game.current, turn: view.game.turn }));
+    if (s.phase === 'main' && s.current === 0 && s.turn > 2) break;
+    if (s.current === 0 && (s.phase === 'draft' || s.phase === 'draw')) await page.tap('#market .card[data-act=faceup]').catch(() => {});
+    else if (s.current === 0 && s.phase === 'main') await page.tap('button[data-act=end-turn]').then(() => page.tap('.modal-box button[data-modal=end]')).catch(() => {});
+    await page.waitForTimeout(250);
+  }
+  const layout = await page.evaluate(() => {
+    const r = id => document.getElementById(id).getBoundingClientRect();
+    const inside = b => b.top >= 0 && b.left >= 0 && b.bottom <= innerHeight + 0.5 && b.right <= innerWidth + 0.5 && b.height > 0;
+    const cut = [...document.querySelectorAll('#hand .card .cname')].filter(n => n.scrollWidth > n.clientWidth + 1).map(n => n.textContent);
+    return {
+      scroll: [document.documentElement.scrollHeight - innerHeight, document.documentElement.scrollWidth - innerWidth],
+      board: inside(r('board-wrap')) ? r('board-wrap').height / innerHeight : 0,
+      hand: inside(r('hand')), me: inside(r('seat-bottom')), opp: inside(r('seat-top')),
+      cut, flights: window.__flights, turn: view.game.turn,
+    };
+  });
+  await page.screenshot({ path: path.join(__dirname, 'screenshots', 'single-player-phone.png') });
+  console.log('phone:', JSON.stringify(layout));
+  if (layout.scroll[0] > 0 || layout.scroll[1] > 0) throw new Error('the phone page scrolls');
+  if (layout.board < 0.4) throw new Error('the board is too small on a phone');
+  if (!layout.hand || !layout.me || !layout.opp) throw new Error('the hand or a player bar is off the phone screen');
+  if (layout.flights === 0) throw new Error('no cards flew');
+}

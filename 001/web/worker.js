@@ -4,7 +4,7 @@
 // works exactly as it does against the server.
 
 const SIMULATIONS = 400, SAMPLES = 4; // the bot's search, as in the web server
-const DELAY_MS = 700;                 // each bot action takes at least this long, so you can follow it
+const DELAY_MS = 1000;                // each bot action takes at least this long, so you can follow it
 
 let wasm = null;
 let seated = false, botRunning = false;

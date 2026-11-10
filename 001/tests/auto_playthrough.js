@@ -275,7 +275,9 @@ async function claim(pl, seat) {
 
 async function newGame(pl, o) {
   const page = pl.page;
-  await press(pl, 'button[data-act=new-game]');
+  // Narrow screens keep New game in the menu.
+  if (await pl.page.locator('#topbar button[data-act=new-game]').isVisible()) await press(pl, 'button[data-act=new-game]');
+  else { await press(pl, '#topbar button[data-act=menu]'); await press(pl, '.modal-box button[data-modal=new-game]'); }
   await page.waitForSelector('#ng-first');
   await page.selectOption('#ng-rules', 'auto');
   await page.selectOption('#ng-first', o.first === null ? '' : String(o.first));

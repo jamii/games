@@ -9,7 +9,7 @@
 //! A bot can take an empty seat (with automatic rules). It searches with the
 //! network in `BOT_NET` (default `bots/net.json`, if present) or else the
 //! hand-made evaluation; `BOT_SEARCH` sets the search size (default 400x4)
-//! and `BOT_DELAY_MS` the pause before each of its actions (default 700).
+//! and `BOT_DELAY_MS` the pause before each of its actions (default 1000).
 
 use axum::Router;
 use axum::extract::State;
@@ -51,7 +51,7 @@ fn bot_config_from_env() -> BotConfig {
             std::env::var("BOT_DELAY_MS")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(700),
+                .unwrap_or(1000),
         ),
     }
 }

@@ -25,12 +25,15 @@ const ui = {
   retry: null, // forced version of the last rejected action
   refTab: 'rules',
   origin: null, // with Remote: the friendly unit to act from
+  logOpen: false, // narrow screens: the log drawer
+  peek: null, // narrow screens: a card tapped to read it
 };
 
 let drag = null;
 let renderPending = false;
 let toastTimer = null;
 let logLength = 0;
+let logSeen = null; // log entries already shown above the board
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -119,9 +122,12 @@ function connect() {
     if (msg.type === 'init') {
       setInit(msg);
     } else if (msg.type === 'state') {
+      const prev = view, before = prev && init && !drag ? snapshot() : null;
       view = msg;
       cleanUpSelection();
       render();
+      if (before) animate(prev, before);
+      else logSeen = view.log_total;
     } else if (msg.type === 'error') {
       showToast(msg.message, msg.retry);
     }
@@ -229,11 +235,36 @@ function render() {
   renderPending = false;
   renderTop();
   renderBoard();
-  renderRosters();
+  renderSeats();
   renderHand();
   renderMarket();
   renderInspector();
   renderLog();
+  renderLayout();
+}
+
+// Narrow screens: which parts of the one-column layout are showing.
+function renderLayout() {
+  hideArriving();
+  const app = $('app');
+  const sel = ui.sel && (ui.sel.unit !== undefined ? !!unitById(ui.sel.unit) : !!ui.sel.cell);
+  const taking = canTake() && !promptNow();
+  // While you're taking cards, the market needs the room.
+  app.classList.toggle('sheet-open', !!myPrompt() || (sel && !taking));
+  app.classList.toggle('taking', taking);
+  app.classList.toggle('log-open', ui.logOpen);
+  // A card picked from the hand shows in full above the hand.
+  const pv = $('preview');
+  const m = ui.mode;
+  let card = m && m.kind === 'apply-hand' ? m.card : m && m.kind === 'apply-free' ? m.power : null;
+  if (card === null) card = ui.peek;
+  if (card === null) { pv.hidden = true; pv.innerHTML = ''; return; }
+  pv.innerHTML = cardHtml(card, { free: G().free_powers.includes(card) });
+  pv.hidden = false;
+  const hand = $('hand').getBoundingClientRect();
+  const w = pv.firstElementChild.offsetWidth;
+  pv.style.left = `${Math.max(8, (window.innerWidth - w) / 2)}px`;
+  pv.style.top = `${Math.max(8, hand.top - pv.firstElementChild.offsetHeight - 14)}px`;
 }
 
 function phaseText() {
@@ -277,18 +308,16 @@ function phaseText() {
 function renderTop() {
   const phase = phaseText();
   let buttons = '';
-  if (view.can_undo) buttons += '<button data-act="undo" title="Undo your last action this turn">Undo</button>';
-  if (canMain() && (!auto() || isLegal(a => a.type === 'end_turn'))) {
-    buttons += '<button class="primary" data-act="end-turn">End turn</button>';
-  }
   const rules = auto() ? 'Automatic rules' : 'Manual rules';
   if (myTurn() && !promptNow()) {
     buttons += `<button data-act="toggle-mode" title="Switch between automatic and manual rules">${rules} ⇄</button>`;
   } else {
     buttons += `<span class="tag rules-tag">${rules}</span>`;
   }
-  if (me() !== null) buttons += '<button data-act="new-game">New game</button>';
-  buttons += '<button data-act="reference">Rules &amp; cards</button>';
+  if (me() !== null) buttons += '<button class="wide-only" data-act="new-game">New game</button>';
+  buttons += '<button class="wide-only" data-act="reference">Rules &amp; cards</button>';
+  buttons += `<button class="narrow-only" data-act="log" title="Show the log and chat">Log</button>`;
+  buttons += `<button class="narrow-only" data-act="menu" title="Menu" aria-label="Menu">☰</button>`;
   $('topbar').innerHTML = `
     <div class="title">001</div>
     <div class="phase ${phase.cls}" title="${esc(phase.text)}">${esc(phase.text)}</div>
@@ -363,9 +392,10 @@ function unitSvg(u, i, n) {
   if (choice) cls.push('choice');
   const ready = auto() && canMain() && !ui.mode && i === n - 1 && canActUnit(u);
   const label = unitLabel(u);
-  let s = `<g class="${cls.join(' ')}" data-unit="${u.id}" transform="translate(${px.toFixed(3)},${py.toFixed(3)})">`;
+  const angle = (Math.atan2(vy, vx) * 180 / Math.PI).toFixed(1);
+  let s = `<g class="${cls.join(' ')}" data-unit="${u.id}" data-x="${px.toFixed(3)}" data-y="${py.toFixed(3)}" data-angle="${angle}" transform="translate(${px.toFixed(3)},${py.toFixed(3)})">`;
   s += `<title>${esc(unitTooltip(u))}</title>`;
-  s += `<polygon class="pointer" points="${arrowPoints(0, 0, vx, vy, 0.88, 0.45, 0.26)}"/>`;
+  s += `<g class="turn" transform="rotate(${angle})"><polygon class="pointer" points="${arrowPoints(0, 0, 1, 0, 0.88, 0.45, 0.26)}"/></g>`;
   if (ready) s += '<circle class="ready" r="0.72"/>';
   s += '<circle class="body" r="0.6"/>';
   s += `<text class="label" y="-0.06">${esc(label)}</text>`;
@@ -407,18 +437,24 @@ function powerChip(p) {
   return `<span class="pchip ${pw.kind}${p.card ? '' : ' free'}" title="${esc(`${pw.name} (${pw.kind}${p.card ? '' : ', free'}): ${pw.text}`)}">${esc(pw.name)}</span>`;
 }
 
-function renderRosters() {
+// The two players' bars: the opponent above the board, you below it (when
+// watching, Numbers is below).
+function renderSeats() {
   const bottom = me() === null ? 1 : me();
-  $('roster-top').innerHTML = rosterHtml(1 - bottom);
-  $('roster-bottom').innerHTML = rosterHtml(bottom);
+  $('seat-top').innerHTML = seatHtml(1 - bottom);
+  $('seat-bottom').innerHTML = seatHtml(bottom);
+  for (const [id, seat] of [['seat-top', 1 - bottom], ['seat-bottom', bottom]]) {
+    const turn = G().current === seat && G().phase.kind !== 'over';
+    $(id).className = `seat ${SEAT_KEYS[seat]}${turn ? ' turn' : ''}`;
+    $(id).dataset.seat = seat;
+  }
 }
 
-function rosterHtml(seat) {
+function seatHtml(seat) {
   const g = G(), sv = view.seats[seat];
-  const turn = g.current === seat && g.phase.kind !== 'over';
   let status = '';
-  if (me() === seat) status = '<span class="tag you">you</span><button class="mini" data-act="leave">Leave seat</button>';
-  else if (sv.bot) status = `<span class="tag online">bot${sv.thinking ? ' · thinking…' : ''}</span><button class="mini" data-act="remove-bot" data-seat="${seat}">Remove bot</button>`;
+  if (me() === seat) status = '<span class="tag you">you</span><button class="mini wide-only" data-act="leave">Leave seat</button>';
+  else if (sv.bot) status = `<span class="tag online${sv.thinking ? ' thinking' : ''}">${sv.thinking ? 'bot thinking' : 'bot'}</span><button class="mini wide-only" data-act="remove-bot" data-seat="${seat}">Remove bot</button>`;
   else if (sv.claimed && sv.connected) status = '<span class="tag online">online</span>';
   else if (sv.claimed) status = '<span class="tag offline">offline</span>';
   else status = '<span class="tag">empty seat</span>';
@@ -431,13 +467,23 @@ function rosterHtml(seat) {
   const adjust = canMain() && !auto()
     ? ` <button class="mini" data-act="score" data-seat="${seat}" data-delta="-1" title="Manual score adjustment">−</button><button class="mini" data-act="score" data-seat="${seat}" data-delta="1" title="Manual score adjustment">+</button>`
     : '';
-  const first = g.first_player === seat ? '<span class="tag" title="Goes first">1st</span>' : '';
-  let html = `<div class="roster-head ${SEAT_KEYS[seat]}${turn ? ' turn' : ''}">
-    <span class="seat-name">${seatName(seat)}</span>${first}${status}
+  const first = g.first_player === seat ? '<span class="tag wide-only" title="Goes first">1st</span>' : '';
+  const n = g.hand_counts[seat];
+  const backs = `<span class="backs" data-hand="${seat}">${'<i></i>'.repeat(Math.max(1, Math.min(n, 8)))}</span>`;
+  let turnBtns = '';
+  if (me() === seat) {
+    if (view.can_undo) turnBtns += '<button data-act="undo" title="Undo your last action this turn">Undo</button>';
+    if (canMain() && (!auto() || isLegal(a => a.type === 'end_turn'))) {
+      turnBtns += '<button class="primary big" data-act="end-turn">End turn</button>';
+    }
+  }
+  let html = `<div class="seat-head">
+    <span class="turn-dot"></span><span class="seat-name">${seatName(seat)}</span>${first}${status}
     <span class="spacer"></span>
-    <span class="muted">hand: ${g.hand_counts[seat]}</span>
-    <span class="muted">flag: ${g.flag_counts[seat]}</span>
-    <span class="score">${g.scores[seat]} / ${g.target_score} pts</span>${adjust}
+    <span class="stat" title="Cards in hand"><span class="stat-word">hand</span> ${backs}<b data-count="hand">${n}</b></span>
+    <span class="stat" title="Units next to the flag"><span class="stat-word">flag</span><span class="stat-icon">⚑</span> <b data-count="flag">${g.flag_counts[seat]}</b></span>
+    <span class="score" data-score="${seat}">${g.scores[seat]}<span class="pts"> / ${g.target_score}</span></span>${adjust}
+    ${turnBtns ? `<span class="turn-btns">${turnBtns}</span>` : ''}
   </div><div class="slots">`;
   for (const label of init.labels[seat]) {
     const u = g.units.find(u => u.owner === seat && u.label === label);
@@ -446,12 +492,9 @@ function rosterHtml(seat) {
       continue;
     }
     const sel = ui.sel && ui.sel.unit === u.id ? ' selected' : '';
-    const meta = [];
-    if (u.tokens) meta.push(plural(u.tokens, 'token'));
-    if (u.activations >= u.max_activations) meta.push('activated');
-    html += `<div class="slot filled ${SEAT_KEYS[seat]}${sel}" data-act="select-unit" data-unit="${u.id}">
+    const done = u.activations >= u.max_activations ? ' · activated' : '';
+    html += `<div class="slot filled ${SEAT_KEYS[seat]}${sel}" data-act="select-unit" data-unit="${u.id}" title="${esc(unitTooltip(u) + done)}">
       <span class="slot-label">${esc(label)}</span>${u.powers.map(powerChip).join('') || '<span class="muted">no powers</span>'}
-      ${meta.length ? `<div class="slot-meta">${meta.join(' · ')}</div>` : ''}
     </div>`;
   }
   return html + '</div>';
@@ -471,24 +514,30 @@ function cardHtml(p, opts = {}) {
 
 function renderHand() {
   if (me() === null) {
-    $('hand').innerHTML = '<div class="muted">You are watching. Take a seat above to play.</div>';
+    $('hand').innerHTML = '<div class="muted watching">You are watching. Take a seat to play.</div>';
     return;
   }
-  const cards = G().hand || [];
+  const g = G();
+  const cards = g.hand || [];
   const main = canMain();
-  const forbidden = me() !== null ? G().forbidden[me()] : [];
+  const forbidden = g.forbidden[me()];
   const items = cards.map(c => {
     const selected = ui.mode && ui.mode.kind === 'apply-hand' && ui.mode.card === c;
     const usable = main && (!auto() || isLegal(a => a.type === 'apply_hand' && a.card === c));
     return cardHtml(c, {
       cls: (usable ? 'clickable' : '') + (selected ? ' selected' : '') + (forbidden.includes(c) ? ' forbidden' : ''),
-      data: { act: 'hand', card: c },
+      data: { act: 'hand', card: c, flip: `h${c}` },
       badge: forbidden.includes(c) ? 'forbidden this turn' : '',
       buttons: selected && !auto() ? `<button class="mini" data-act="discard-card" data-card="${c}">Discard</button>` : '',
     });
   }).join('');
-  $('hand').innerHTML = `<div class="strip-title">Your hand (${cards.length})</div>
-    <div class="cards">${items || '<span class="muted">No cards.</span>'}</div>`;
+  const free = g.free_powers.map(p => {
+    const selected = ui.mode && ui.mode.kind === 'apply-free' && ui.mode.power === p;
+    const usable = main && (!auto() || isLegal(a => a.type === 'apply_free' && a.power === p));
+    return cardHtml(p, { cls: `free${usable ? ' clickable' : ''}${selected ? ' selected' : ''}`, data: { act: 'free', power: p, flip: `f${p}` }, free: true });
+  }).join('');
+  $('hand').innerHTML = `<div class="free-cards" title="Free powers: anyone can apply these">${free}</div>
+    <div class="hand-cards">${items || '<span class="empty">No cards in your hand.</span>'}</div>`;
 }
 
 function renderMarket() {
@@ -496,33 +545,27 @@ function renderMarket() {
   const take = canTake() && !promptNow(), main = canMain() && !auto();
   const faceup = g.faceup.map((c, i) => cardHtml(c, {
     cls: take ? 'clickable takeable' : main ? 'clickable' : '',
-    data: { act: 'faceup', slot: i },
-    badge: i === 0 ? 'discarded next turn' : '',
+    data: { act: 'faceup', slot: i, flip: `m${c}` },
+    badge: i === 0 ? 'discarded next' : '',
   })).join('');
   const deck = `<div class="pile ${take ? 'takeable' : ''}" data-act="deck" title="Draw the top card"><div class="pile-n">${g.deck_count}</div>Deck</div>`;
   const discard = `<div class="pile" data-act="discard-pile" title="Look through the discard pile"><div class="pile-n">${g.discard.length}</div>Discard</div>`;
-  const free = g.free_powers.map(p => {
-    const selected = ui.mode && ui.mode.kind === 'apply-free' && ui.mode.power === p;
-    const usable = canMain() && (!auto() || isLegal(a => a.type === 'apply_free' && a.power === p));
-    return cardHtml(p, { cls: `free${usable ? ' clickable' : ''}${selected ? ' selected' : ''}`, data: { act: 'free', power: p }, free: true });
-  }).join('');
-  $('market').innerHTML = `<div class="strip-row">
-    <div><div class="strip-title">Faceup</div><div class="cards">${faceup || '<span class="muted">Empty.</span>'}</div></div>
-    <div><div class="strip-title">Piles</div><div class="cards">${deck}${discard}</div></div>
-    <div><div class="strip-title">Free powers</div><div class="cards">${free}</div></div>
-  </div>`;
+  $('market').innerHTML = `<div class="strip-title">Market</div>
+    <div class="market-cards">${faceup || '<span class="muted">Empty.</span>'}</div>
+    <div class="piles">${deck}${discard}</div>`;
 }
 
 function renderInspector() {
   const el = $('inspector');
   const prompt = myPrompt();
   if (prompt) { el.innerHTML = promptPanel(prompt); return; }
+  const close = '<button class="mini close-sheet" data-act="deselect" title="Close">✕</button>';
   const s = ui.sel;
   if (s && s.unit !== undefined) {
     const u = unitById(s.unit);
-    if (u) { el.innerHTML = unitPanel(u); return; }
+    if (u) { el.innerHTML = close + unitPanel(u); return; }
   }
-  if (s && s.cell) { el.innerHTML = cellPanel(s.cell); return; }
+  if (s && s.cell) { el.innerHTML = close + cellPanel(s.cell); return; }
   el.innerHTML = helpPanel();
 }
 
@@ -671,6 +714,19 @@ function autoUnitPanel(u) {
   const origins = [...new Set(activations.filter(a => a.origin != null).map(a => a.origin))];
   const origin = origins.includes(ui.origin) ? ui.origin : null;
   let h = unitHeader(u);
+  if (activations.length) {
+    const rotate = activations.some(a => a.facing === facing && a.power === null);
+    h += `<div class="section first"><h4>Activate</h4><div class="activate-row">${facingPicker(u, activations)}
+      <div><div class="hint">Choose a facing (arrows with a green ring let it use a power), then <b>Activate &amp; use</b> a power below, or:</div>
+      <div class="btn-row"><button data-act="activate"${rotate ? '' : ' disabled'}>Activate (rotate only)</button></div></div></div>`;
+    if (origins.length) {
+      const btn = (id, label) => `<button class="mini${origin === id ? ' on' : ''}" data-act="origin" data-origin="${id === null ? 'null' : id}">${esc(label)}</button>`;
+      h += `<div class="btn-row small">Remote, act from: ${btn(null, 'here')}${origins.map(o => btn(o, unitLabel(unitById(o)) || '?')).join('')}</div>`;
+    }
+    h += '</div>';
+  } else if (u.owner === me() && canMain()) {
+    h += `<div class="hint">${u.activations >= u.max_activations ? 'Already activated this turn.' : 'It can\'t be activated now.'}</div>`;
+  }
   h += '<h4>Powers</h4>';
   if (!u.powers.length) h += '<div class="muted">No powers.</div>';
   u.powers.forEach((p, i) => {
@@ -692,19 +748,6 @@ function autoUnitPanel(u) {
     }
     h += '</div>';
   });
-  if (activations.length) {
-    const rotate = activations.some(a => a.facing === facing && a.power === null);
-    h += `<div class="section"><h4>Activate</h4><div class="activate-row">${facingPicker(u, activations)}
-      <div><div class="hint">Choose a facing (arrows with a green ring let it use a power), then <b>Activate &amp; use</b> a power above, or:</div>
-      <div class="btn-row"><button data-act="activate"${rotate ? '' : ' disabled'}>Activate (rotate only)</button></div></div></div>`;
-    if (origins.length) {
-      const btn = (id, label) => `<button class="mini${origin === id ? ' on' : ''}" data-act="origin" data-origin="${id === null ? 'null' : id}">${esc(label)}</button>`;
-      h += `<div class="btn-row small">Remote, act from: ${btn(null, 'here')}${origins.map(o => btn(o, unitLabel(unitById(o)) || '?')).join('')}</div>`;
-    }
-    h += '</div>';
-  } else if (u.owner === me() && canMain()) {
-    h += `<div class="hint">${u.activations >= u.max_activations ? 'Already activated this turn.' : 'It can\'t be activated now.'}</div>`;
-  }
   return h;
 }
 
@@ -761,6 +804,379 @@ function renderLog() {
   }).join('');
   if (atBottom || view.log.length !== logLength) el.scrollTop = el.scrollHeight;
   logLength = view.log.length;
+}
+
+// ---------------------------------------------------------------------------
+// Motion: show what changed between two states, so you can follow what just
+// happened (above all when the bot plays). Units slide, turn, appear and die;
+// cards fly between the market, the piles, the hands and the units; points
+// and counts pop; the log's new lines show in a line above the board, and a
+// banner announces each turn.
+// ---------------------------------------------------------------------------
+
+const calm = () => !!window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const shown = r => !!r && r.width > 0 && r.height > 0;
+const EASE = 'cubic-bezier(.35, .8, .3, 1)';
+// The size of a flying card before it's scaled to fit where it starts and ends.
+const FLY_W = 132, FLY_H = 112;
+
+// Where things are on the screen.
+function snapshot() {
+  const rect = el => (el ? el.getBoundingClientRect() : null);
+  const s = { flip: new Map(), units: new Map() };
+  document.querySelectorAll('[data-flip]').forEach(el => s.flip.set(el.dataset.flip, { el, rect: rect(el) }));
+  document.querySelectorAll('#board .unit[data-unit]').forEach(el => s.units.set(+el.dataset.unit, {
+    el, x: +el.dataset.x, y: +el.dataset.y, angle: +el.dataset.angle, html: el.outerHTML, rect: rect(el.querySelector('.body')),
+  }));
+  s.deck = rect(document.querySelector('#market [data-act="deck"]'));
+  s.discard = rect(document.querySelector('#market [data-act="discard-pile"]'));
+  s.backs = [0, 1].map(seat => rect(document.querySelector(`.backs[data-hand="${seat}"]`)));
+  s.board = rect($('board-wrap'));
+  return s;
+}
+
+// Where each card is: the market, my hand, a unit or the discard pile. Cards
+// that aren't here are in the deck or a hand this browser can't see.
+function cardPlaces(g) {
+  const at = new Map();
+  g.faceup.forEach(c => at.set(c, { kind: 'market' }));
+  (g.hand || []).forEach(c => at.set(c, { kind: 'hand' }));
+  g.units.forEach(u => u.powers.forEach(p => { if (p.card) at.set(p.power, { kind: 'unit', id: u.id }); }));
+  g.discard.forEach(c => at.set(c, { kind: 'discard' }));
+  return at;
+}
+const samePlace = (a, b) => a.kind === b.kind && a.id === b.id && a.seat === b.seat;
+
+function placeRect(place, card, snap) {
+  switch (place.kind) {
+    case 'market': { const f = snap.flip.get(`m${card}`); return f && f.rect; }
+    case 'hand': { const f = snap.flip.get(`h${card}`); return f && f.rect; }
+    case 'free': { const f = snap.flip.get(`f${card}`); return f && f.rect; }
+    case 'unit': { const u = snap.units.get(place.id); return u && u.rect; }
+    case 'discard': return snap.discard;
+    case 'deck': return snap.deck;
+    case 'backs': return snap.backs[place.seat];
+  }
+  return null;
+}
+
+// The key of the card's element where it lands (hidden until the card arrives).
+function placeKey(place, card) {
+  return place.kind === 'market' ? `m${card}` : place.kind === 'hand' ? `h${card}` : null;
+}
+
+// Cards on their way to the hand or the market: their elements stay hidden
+// until they land, even if the page is redrawn meanwhile.
+const arriving = new Set();
+function hideArriving() {
+  for (const k of arriving) {
+    const el = document.querySelector(`[data-flip="${k}"]`);
+    if (el) el.style.visibility = 'hidden';
+  }
+}
+
+function animate(prev, before) {
+  const p = prev.game, g = G();
+  const newLines = newLogLines();
+  const sameGame = me() === prev.you && p.options.seed === g.options.seed && g.turn >= p.turn;
+  if (!sameGame || calm()) { ticker(newLines); return; }
+  const after = snapshot();
+  animateUnits(p, g, before, after, newLines);
+  animateCards(p, g, before, after);
+  animateCounts(p, g);
+  ticker(newLines);
+}
+
+// The log's lines since the last state, with the seat whose action they came from.
+function newLogLines() {
+  const total = view.log_total ?? 0;
+  const n = logSeen === null ? 0 : Math.max(0, Math.min(total - logSeen, view.log.length));
+  logSeen = total;
+  return n ? view.log.slice(-n) : [];
+}
+
+function animateUnits(p, g, before, after, lines) {
+  const svg = $('board');
+  const oldUnits = new Map(p.units.map(u => [u.id, u]));
+  // The power each unit just used, from the log ("A activated and used Walk: …").
+  const used = new Map();
+  for (const e of lines) {
+    const m = /^(.*?) activated(?:, turning [^,]*,)? and used (.+?)(?: from [^:]*)?: /.exec(e.text);
+    if (m) used.set(m[1].toLowerCase(), m[2]);
+  }
+  for (const [id, now] of after.units) {
+    const old = before.units.get(id), u = unitById(id), was = oldUnits.get(id);
+    const at = `translate(${now.x}px, ${now.y}px)`;
+    if (!old || !was) {
+      now.el.animate([
+        { transform: `${at} scale(0)` }, { transform: `${at} scale(1.25)`, offset: 0.6 }, { transform: `${at} scale(1)` },
+      ], { duration: 460, easing: 'ease-out' });
+      ripple(now.x, now.y, ownerKey(u));
+      continue;
+    }
+    if (old.x !== now.x || old.y !== now.y) {
+      const lift = Math.min(0.6, Math.hypot(now.x - old.x, now.y - old.y) * 0.12);
+      now.el.animate([
+        { transform: `translate(${old.x}px, ${old.y}px)` },
+        { transform: `translate(${(old.x + now.x) / 2}px, ${(old.y + now.y) / 2 - lift}px) scale(1.12)`, offset: 0.5 },
+        { transform: at },
+      ], { duration: 420, easing: 'ease-in-out' });
+    }
+    if (old.angle !== now.angle) {
+      const d = ((now.angle - old.angle) % 360 + 540) % 360 - 180;
+      const turn = now.el.querySelector('.turn');
+      if (turn) turn.animate([{ transform: `rotate(${now.angle - d}deg)` }, { transform: `rotate(${now.angle}deg)` }], { duration: 320, easing: 'ease-in-out' });
+    }
+    if (u.activations > was.activations) {
+      ripple(now.x, now.y, ownerKey(u), 'act');
+      const power = used.get((u.owner !== null ? u.label : isFlagUnit(u) ? 'the flag' : 'a neutral unit').toLowerCase());
+      if (power) floater(power, now.el.querySelector('.body'), 'used');
+    }
+    // Powers, tokens and owners that changed.
+    const names = list => list.map(q => P(q.power).name);
+    const gained = diffNames(names(u.powers), names(was.powers)), lost = diffNames(names(was.powers), names(u.powers));
+    const notes = [...gained.map(n => [`+${n}`, 'gain']), ...lost.map(n => [`−${n}`, 'loss'])];
+    if (u.tokens !== was.tokens) notes.push([`${u.tokens > was.tokens ? '+' : '−'}${plural(Math.abs(u.tokens - was.tokens), 'token')}`, u.tokens > was.tokens ? 'gain' : 'loss']);
+    if (u.owner !== was.owner) notes.push([u.owner === null ? 'now neutral' : `now ${possessive(seatName(u.owner))}`, 'used']);
+    notes.forEach(([text, cls], i) => floater(text, now.el.querySelector('.body'), cls, 160 + i * 260));
+  }
+  // Units that are gone: a ghost flashes, swells and shrinks away.
+  for (const [id, old] of before.units) {
+    if (after.units.has(id)) continue;
+    let layer = svg.querySelector('.ghosts');
+    if (!layer) { layer = document.createElementNS('http://www.w3.org/2000/svg', 'g'); layer.setAttribute('class', 'ghosts'); svg.appendChild(layer); }
+    layer.insertAdjacentHTML('beforeend', old.html);
+    const el = layer.lastElementChild;
+    el.removeAttribute('data-unit');
+    el.classList.add('dying');
+    const at = `translate(${old.x}px, ${old.y}px)`;
+    el.animate([
+      { transform: `${at} scale(1)`, opacity: 1 },
+      { transform: `${at} scale(1.3)`, opacity: 1, offset: 0.3 },
+      { transform: `${at} scale(.1)`, opacity: 0 },
+    ], { duration: 700, easing: 'ease-in', fill: 'forwards' }).onfinish = () => el.remove();
+    ripple(old.x, old.y, 'death');
+  }
+}
+
+// Items of `a` not in `b`, counting repeats.
+function diffNames(a, b) {
+  const left = b.slice();
+  return a.filter(x => { const i = left.indexOf(x); if (i < 0) return true; left.splice(i, 1); return false; });
+}
+
+// A ring that spreads from a point on the board.
+function ripple(x, y, cls, kind = 'spawn') {
+  const svg = $('board');
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('class', `ripple ${cls} ${kind}`);
+  g.setAttribute('transform', `translate(${x},${y})`);
+  g.innerHTML = '<circle r="0.62"/>';
+  svg.appendChild(g);
+  g.firstChild.animate([{ transform: 'scale(1)', opacity: 0.9 }, { transform: `scale(${kind === 'death' ? 2.4 : 1.9})`, opacity: 0 }],
+    { duration: kind === 'act' ? 650 : 750, easing: 'ease-out' }).onfinish = () => g.remove();
+}
+
+// A word that rises from a spot on the screen and fades.
+function floater(text, target, cls = '', delay = 0) {
+  const r = target && target.getBoundingClientRect ? target.getBoundingClientRect() : target;
+  if (!shown(r)) return;
+  const el = document.createElement('div');
+  el.className = `floater ${cls}`;
+  el.textContent = text;
+  el.style.left = `${r.left + r.width / 2}px`;
+  el.style.top = `${r.top}px`;
+  $('fx').appendChild(el);
+  el.animate([
+    { transform: 'translate(-50%, -30%) scale(.6)', opacity: 0 },
+    { transform: 'translate(-50%, -110%) scale(1.08)', opacity: 1, offset: 0.18 },
+    { transform: 'translate(-50%, -130%) scale(1)', opacity: 1, offset: 0.7 },
+    { transform: 'translate(-50%, -190%) scale(1)', opacity: 0 },
+  ], { duration: 1500, delay, easing: 'ease-out', fill: 'backwards' }).onfinish = () => el.remove();
+}
+
+function popEl(el, scale = 1.4) {
+  if (el) el.animate([{ transform: 'scale(1)' }, { transform: `scale(${scale})` }, { transform: 'scale(1)' }], { duration: 450, easing: 'ease-out' });
+}
+
+// A card flies from one place to another. `via` holds it, enlarged, over the
+// board on the way (to show the card the other player just played).
+function fly(html, from, to, { delay = 0, via = null, land = null, fade = false } = {}) {
+  if (!shown(from) || !shown(to)) return;
+  const fit = r => Math.min(r.width / FLY_W, r.height / FLY_H);
+  const pos = (r, k, lift = 0) => `translate(${r.left + r.width / 2 - FLY_W / 2}px, ${r.top + r.height / 2 - FLY_H / 2 - lift}px) scale(${k})`;
+  const el = document.createElement('div');
+  el.className = 'flight';
+  el.innerHTML = html;
+  $('fx').appendChild(el);
+  const k0 = fit(from), k1 = fit(to);
+  let frames, duration;
+  if (via) {
+    const kv = Math.min(1.35, fit(via));
+    frames = [
+      { transform: pos(from, k0), opacity: 1 },
+      { transform: pos(via, kv), opacity: 1, offset: 0.25 },
+      { transform: pos(via, kv), opacity: 1, offset: 0.7 },
+      { transform: pos(to, k1), opacity: fade ? 0 : 1 },
+    ];
+    duration = 1500;
+  } else {
+    const mid = { left: (from.left + to.left) / 2, top: (from.top + to.top) / 2, width: (from.width + to.width) / 2, height: (from.height + to.height) / 2 };
+    frames = [
+      { transform: pos(from, k0), opacity: 1 },
+      { transform: pos(mid, Math.max(k0, k1) * 1.08, 24), opacity: 1, offset: 0.5 },
+      { transform: pos(to, k1), opacity: fade ? 0 : 1 },
+    ];
+    duration = 560;
+  }
+  if (land) { arriving.add(land); hideArriving(); }
+  const done = () => {
+    el.remove();
+    if (!land) return;
+    arriving.delete(land);
+    const real = document.querySelector(`[data-flip="${land}"]`);
+    if (real) real.style.visibility = '';
+  };
+  const a = el.animate(frames, { duration, delay, easing: EASE, fill: 'backwards' });
+  a.onfinish = done;
+  a.oncancel = done;
+}
+
+const BACK = '<div class="card back"></div>';
+
+function animateCards(p, g, before, after) {
+  // Cards that slid along (the market row, your hand): from their old spot to the new.
+  for (const [k, now] of after.flip) {
+    const old = before.flip.get(k);
+    if (!old || !shown(old.rect) || !shown(now.rect)) continue;
+    const dx = old.rect.left - now.rect.left, dy = old.rect.top - now.rect.top;
+    if (Math.abs(dx) + Math.abs(dy) > 2) {
+      now.el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 380, easing: EASE });
+    }
+  }
+
+  const was = cardPlaces(p), is = cardPlaces(g);
+  const hidden = [0, 1].filter(seat => seat !== me());
+  const handDelta = [0, 1].map(seat => g.hand_counts[seat] - p.hand_counts[seat]);
+  let deckDelta = g.deck_count - p.deck_count;
+  const opponentPlays = me() !== null && g.current !== me();
+  // Where a card came from when this browser couldn't see it: a hidden hand that shrank, or the deck.
+  const hiddenFrom = () => {
+    for (const seat of hidden) if (handDelta[seat] < 0) { handDelta[seat]++; return { kind: 'backs', seat }; }
+    if (deckDelta < 0) { deckDelta++; return { kind: 'deck' }; }
+    return null;
+  };
+  const hiddenTo = () => {
+    for (const seat of hidden) if (handDelta[seat] > 0) { handDelta[seat]--; return { kind: 'backs', seat }; }
+    if (deckDelta > 0) { deckDelta--; return { kind: 'deck' }; }
+    return null;
+  };
+  const moves = [];
+  for (const c of new Set([...was.keys(), ...is.keys()])) {
+    const a = was.get(c), b = is.get(c);
+    if (a && b && samePlace(a, b)) continue;
+    moves.push({ c, a, b });
+  }
+  // Known places first, so the hidden ones are matched with what's left.
+  moves.sort((x, y) => (!x.a || !x.b) - (!y.a || !y.b));
+  for (const m of moves) {
+    const from = m.a || hiddenFrom(), to = m.b || hiddenTo();
+    if (!from || !to) continue;
+    const face = !(from.kind === 'deck' || from.kind === 'backs') || !(to.kind === 'deck' || to.kind === 'backs');
+    const html = face ? cardHtml(m.c) : BACK;
+    // The other player's card arriving on the board: hold it up where you can read it.
+    const via = from.kind === 'backs' && to.kind === 'unit' && opponentPlays ? viaRect(after) : null;
+    fly(html, placeRect(from, m.c, before), placeRect(to, m.c, after), {
+      land: placeKey(to, m.c),
+      via,
+      delay: from.kind === 'deck' && to.kind === 'market' ? 260 : 0,
+      fade: to.kind === 'unit',
+    });
+  }
+  // Draws this browser can't see: card backs from the deck to that hand.
+  for (const seat of hidden) {
+    for (let i = 0; i < handDelta[seat] && deckDelta < 0; i++, deckDelta++) {
+      fly(BACK, before.deck, after.backs[seat], { delay: i * 120 });
+    }
+  }
+  // Free powers (never cards) that a unit gained come from the free card.
+  const oldUnits = new Map(p.units.map(u => [u.id, u]));
+  for (const u of g.units) {
+    const was = oldUnits.get(u.id);
+    const free = q => q.filter(x => !x.card).map(x => x.power);
+    const added = diffNames(free(u.powers), was ? free(was.powers) : []);
+    for (const pw of added) {
+      const src = placeRect({ kind: 'free' }, pw, before);
+      fly(cardHtml(pw, { free: true }), src, placeRect({ kind: 'unit', id: u.id }, pw, after),
+        { fade: true, via: opponentPlays ? viaRect(after) : null });
+    }
+  }
+}
+
+// The middle of the board, where the other player's card is shown.
+function viaRect(snap) {
+  const b = snap.board;
+  if (!shown(b)) return null;
+  const w = FLY_W * 1.3, h = FLY_H * 1.3;
+  return { left: b.left + b.width / 2 - w / 2, top: b.top + b.height * 0.42 - h / 2, width: w, height: h };
+}
+
+function animateCounts(p, g) {
+  for (const seat of [0, 1]) {
+    const bar = document.querySelector(`.seat[data-seat="${seat}"]`);
+    if (!bar) continue;
+    const score = bar.querySelector(`[data-score="${seat}"]`);
+    const d = g.scores[seat] - p.scores[seat];
+    if (d) { popEl(score, 1.6); floater(`${d > 0 ? '+' : '−'}${Math.abs(d)} point${Math.abs(d) === 1 ? '' : 's'}`, score, d > 0 ? 'point' : 'loss'); }
+    if (g.flag_counts[seat] !== p.flag_counts[seat]) popEl(bar.querySelector('[data-count="flag"]'), 1.7);
+    if (g.hand_counts[seat] !== p.hand_counts[seat]) popEl(bar.querySelector('[data-count="hand"]'), 1.5);
+  }
+  const deck = document.querySelector('#market [data-act="deck"] .pile-n');
+  if (g.deck_count !== p.deck_count) popEl(deck, 1.3);
+  const discard = document.querySelector('#market [data-act="discard-pile"] .pile-n');
+  if (g.discard.length !== p.discard.length) popEl(discard, 1.3);
+}
+
+// What just happened, in one line above the board (the log's new lines, short),
+// and a banner over the board for each new turn.
+function ticker(lines) {
+  const parts = [];
+  let batchSeat = null, first = true, seatKey = '';
+  for (const e of lines) {
+    const turn = /^Turn \d+: (\w+)\.$/.exec(e.text);
+    const win = /^(\w+) wins!$/.exec(e.text);
+    if (turn || win) {
+      const seat = init.seat_names.indexOf((turn || win)[1]);
+      if (seat >= 0) banner(win ? `${seatName(seat)} wins!` : seat === me() ? 'Your turn' : `${possessive(seatName(seat))} turn`, SEAT_KEYS[seat], !!win);
+      continue;
+    }
+    // Your own action needs no telling, but what it caused does.
+    if (e.seat !== batchSeat) { batchSeat = e.seat; first = true; }
+    const skip = !e.chat && e.seat !== null && e.seat === me() && first;
+    first = false;
+    if (skip) continue;
+    if (!parts.length) seatKey = e.seat !== null ? SEAT_KEYS[e.seat] : '';
+    // "1 activated and used Walk: Move to …" is just "1 activated and used Walk".
+    const text = e.chat ? `${e.seat !== null ? seatName(e.seat) : 'Spectator'}: ${e.text}` : e.text.replace(/^([^:]* used [^:]*): .*$/, '$1').replace(/\.$/, '');
+    parts.push(text);
+  }
+  if (!parts.length) return;
+  const el = $('ticker');
+  el.innerHTML = `<span class="tick fresh ${seatKey}">${parts.map(md).join(' <span class="sep">·</span> ')}</span>`;
+  el.title = `${parts.join('. ')}. (Tap for the log.)`;
+  const tick = el.firstElementChild;
+  setTimeout(() => tick.classList.remove('fresh'), 6000);
+}
+
+function banner(text, cls, final = false) {
+  const el = $('banner');
+  el.textContent = text;
+  el.className = `${cls}${final ? ' final' : ''}`;
+  el.hidden = false;
+  el.style.animation = 'none';
+  void el.offsetWidth; // restart the animation
+  el.style.animation = '';
+  el.onanimationend = () => { if (!final) el.hidden = true; };
 }
 
 // ---------------------------------------------------------------------------
@@ -913,6 +1329,27 @@ function openNewGame() {
   });
 }
 
+function openMenu() {
+  let h = '<h2>Menu</h2><div class="choice-list">';
+  h += '<button data-modal="reference">Rules &amp; cards</button>';
+  if (me() !== null) h += '<button data-modal="new-game">New game</button>';
+  if (me() !== null) h += '<button data-modal="leave">Leave your seat</button>';
+  for (const seat of [0, 1]) {
+    if (seat === me()) continue;
+    const sv = view.seats[seat];
+    if (sv.bot) h += `<button data-modal="remove-bot" data-seat="${seat}">Remove the bot from ${seatName(seat)}</button>`;
+    else if (!sv.connected) h += `<button data-modal="add-bot" data-seat="${seat}">Let the bot play ${seatName(seat)}</button>`;
+  }
+  h += '</div><div class="modal-actions"><button data-modal="close">Close</button></div>';
+  openModal(h, {
+    reference: () => openReference(),
+    'new-game': () => openNewGame(),
+    leave: () => { closeModal(); send({ type: 'leave' }); },
+    'remove-bot': d => { closeModal(); send({ type: 'remove_bot', seat: +d.seat }); },
+    'add-bot': d => { closeModal(); send({ type: 'add_bot', seat: +d.seat }); },
+  });
+}
+
 function openReference(tab) {
   ui.refTab = tab || ui.refTab;
   const tabs = `<div class="tabs">
@@ -1041,6 +1478,11 @@ function setupBoard() {
   svg.addEventListener('touchend', e => { if (e.cancelable) e.preventDefault(); }, { passive: false });
 }
 
+function peek(card) {
+  ui.peek = ui.peek === card ? null : card;
+  renderLayout();
+}
+
 function handleAct(a, d) {
   const u = selectedUnit();
   switch (a) {
@@ -1049,6 +1491,9 @@ function handleAct(a, d) {
     case 'add-bot': send({ type: 'add_bot', seat: +d.seat }); break;
     case 'remove-bot': send({ type: 'remove_bot', seat: +d.seat }); break;
     case 'undo': send({ type: 'undo' }); break;
+    case 'menu': openMenu(); break;
+    case 'log': ui.logOpen = !ui.logOpen; renderLayout(); if (ui.logOpen) $('log').scrollTop = $('log').scrollHeight; break;
+    case 'deselect': select(null); break;
     case 'end-turn': openEndTurn(); break;
     case 'toggle-mode':
       if (confirm(auto()
@@ -1068,12 +1513,12 @@ function handleAct(a, d) {
     case 'select-unit': select({ unit: +d.unit }); break;
 
     case 'hand':
-      if (!canMain() || (auto() && !isLegal(a => a.type === 'apply_hand' && a.card === +d.card))) break;
+      if (!canMain() || (auto() && !isLegal(a => a.type === 'apply_hand' && a.card === +d.card))) { peek(+d.card); break; }
       ui.mode = ui.mode && ui.mode.kind === 'apply-hand' && ui.mode.card === +d.card ? null : { kind: 'apply-hand', card: +d.card };
       render();
       break;
     case 'free':
-      if (!canMain() || (auto() && !isLegal(a => a.type === 'apply_free' && a.power === +d.power))) break;
+      if (!canMain() || (auto() && !isLegal(a => a.type === 'apply_free' && a.power === +d.power))) { peek(+d.power); break; }
       ui.mode = ui.mode && ui.mode.kind === 'apply-free' && ui.mode.power === +d.power ? null : { kind: 'apply-free', power: +d.power };
       render();
       break;
@@ -1082,6 +1527,7 @@ function handleAct(a, d) {
       act({ type: 'discard_card', card: +d.card });
       break;
     case 'faceup':
+      if (!canTake() && (auto() || !canMain())) { peek(G().faceup[+d.slot]); break; }
       if (canTake() || (canMain() && !auto() && confirm(`Take ${P(G().faceup[+d.slot]).name} from the faceup row as a manual draw (eg for Mine)? This can't be undone.`))) {
         act({ type: 'take_faceup', slot: +d.slot });
       }
@@ -1119,6 +1565,7 @@ document.addEventListener('click', e => {
   }
   if (e.target === $('modal')) { closeModal(); return; }
   const t = e.target.closest('[data-act]');
+  if (ui.peek !== null && !(t && ['hand', 'free', 'faceup'].includes(t.dataset.act))) { ui.peek = null; renderLayout(); }
   if (!t || t.closest('#board') || !view) return;
   handleAct(t.dataset.act, t.dataset);
 });
@@ -1147,6 +1594,9 @@ $('chat').addEventListener('submit', e => {
   if (input.value.trim()) send({ type: 'chat', text: input.value });
   input.value = '';
 });
+
+// Keep the card preview over the hand when the window changes size.
+window.addEventListener('resize', () => { if (view && init) renderLayout(); });
 
 setupBoard();
 connect();

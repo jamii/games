@@ -219,7 +219,8 @@ async function playTurn(pl, opp) {
   check(v.game.current === me, `${pl.name} plays on its own turn`);
 
   // The other player can't do anything.
-  if (chance(0.15)) {
+  // (A phone hides the market while a unit's details are open.)
+  if (chance(0.15) && await opp.page.locator('.pile[data-act=deck]').isVisible()) {
     const before = JSON.stringify((await V(opp)).game.hand_counts);
     await press(opp, '.pile[data-act=deck]');
     await opp.page.waitForTimeout(150);
@@ -414,7 +415,9 @@ async function claim(pl, seat) {
 
 async function newGame(pl, o) {
   const page = pl.page;
-  await press(pl, 'button[data-act=new-game]');
+  // Narrow screens keep New game in the menu.
+  if (await pl.page.locator('#topbar button[data-act=new-game]').isVisible()) await press(pl, 'button[data-act=new-game]');
+  else { await press(pl, '#topbar button[data-act=menu]'); await press(pl, '.modal-box button[data-modal=new-game]'); }
   await page.waitForSelector('#ng-first');
   await page.selectOption('#ng-rules', 'manual');
   await page.selectOption('#ng-first', o.first === null ? '' : String(o.first));

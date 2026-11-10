@@ -19,7 +19,26 @@ To play against the computer, take a seat and click **Add a bot** on the other o
 bot uses the trained network in `bots/net.json` if there is one (see [BOT.md](BOT.md)),
 and otherwise the hand-made search. Environment variables: `BOT_NET` (another network),
 `BOT_SEARCH` (search size, default `400x4`; bigger is stronger and slower) and
-`BOT_DELAY_MS` (pause before each of its actions, default 700, so you can follow them).
+`BOT_DELAY_MS` (pause before each of its actions, default 1000, so you can follow them).
+
+## The table
+
+The page fits one screen and never scrolls, laid out like a digital deck-building game:
+the board in the middle between the two players' bars (the opponent above, you below,
+with **End turn** at the right of your bar), your hand along the bottom, the market
+(faceup row, deck and discard pile) on the left, and the details of whatever you tapped
+and the log on the right. On a phone it's one column: the market as a strip of names
+above the board, your hand as names below it (tap a card to read it in full), the
+details sliding in between the board and your bar, and the log in a drawer (**Log**);
+**☰** holds the rest.
+
+Every change is animated, so you can follow what happened, above all when the bot plays:
+units slide, turn, pop in when spawned and flash away when killed; a unit that activates
+sends out a ring and names the power it used; cards fly between the market, the piles,
+the hands and the units (a card the other player puts on a unit is first held up over
+the board so you can read it); points and counts pop; a banner announces each turn; and
+the line above the board says what just happened (tap it for the log). With
+*reduce motion* set in the system, only that line changes.
 
 ## Single player in the browser
 
@@ -133,7 +152,8 @@ browsers agree and hands stay hidden.
   phone.
 - `tests/bot_seat.js` plays a game against the server's bot (start the server with
   `BOT_DELAY_MS=50 PORT=3124`).
-- `tests/single_player.js` plays the single-player page (serve `web/dist` on port 3125).
+- `tests/single_player.js` plays the single-player page (serve `web/dist` on port 3125),
+  then checks on a phone that the page fits the screen and the bot's moves are animated.
 
 ```bash
 PORT=3123 cargo run --release &
