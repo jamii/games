@@ -191,6 +191,7 @@ variant (`cards-fixed-flag/`):
 | Phoenix | +6.1 ± 6.2 |  |  | +15 | -0.60 |
 | Trigger | +5.5 ± 7.8 |  |  | -3 | +0.09 |
 | Spin | +4.5 ± 6.7 |  |  | -5 | -0.45 |
+| Stalker | +4.0 ± 7.0 |  |  | +4 | -0.28 |
 | Rush | +3.5 ± 7.3 |  |  | -12 | -0.13 |
 | Circle | +3.5 ± 7.9 |  |  | -7 | +0.06 |
 | Fast | +3.0 ± 6.7 |  |  | +1 | +0.10 |
@@ -203,8 +204,8 @@ variant (`cards-fixed-flag/`):
 | Burrow | -2.5 ± 8.0 | -3.0 ± 8.6 |  | -11 | -0.04 |
 | Split | -2.5 ± 8.2 |  |  | -8 | +0.25 |
 | Bungee | -3.0 ± 7.6 |  |  | -13 | -0.21 |
-| Explosive | -4.0 ± 6.7 |  |  | +11 | +0.72 |
 | Mystery | -4.0 ± 7.4 |  |  | -5 | +0.34 |
+| Explosive | -4.0 ± 6.7 |  |  | +11 | +0.72 |
 <!-- /cards -->
 
 **Swap and Heavy are balance problems, and the cause is moving the flag.**
