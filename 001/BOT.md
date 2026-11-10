@@ -22,7 +22,8 @@ balance problems. The plan has two stages:
   drop back in line. See [Cards](#cards) and RULES_DECISIONS.md.
 - **Climb (+20 points in hand) needs a rules decision**: it's strong because
   we read "buried units don't count at the flag", which the rules text doesn't
-  settle. See RULES_DECISIONS.md, "Not decided yet".
+  settle. If they do count, Climb drops to +9, in line with other good cards.
+  See RULES_DECISIONS.md, "Not decided yet".
 - **The first player's advantage is small.** With the stronger bot, the current
   rule (second player starts with 1 point) gives 50% (44–57%); with no
   compensation it's 55%. See [First player advantage](#first-player-advantage).
@@ -284,8 +285,9 @@ rules decision of ours.** Every Climb in 20 games buried an enemy unit
 climbing onto an enemy next to the flag both removes it and puts your unit
 there. The rules text only says buried units can't be targeted or activated;
 "buried units don't score" is our reading (RULES_DECISIONS.md, "Units, stacks
-and home spaces"). If buried units should still count, Climb is probably
-fine.
+and home spaces"). Measured with buried units still counting at the flag
+(`selfplay --buried-count`, `cards-buried-count/`), Climb is worth +8.6 ± 8.7:
+in line with the other good cards. So that reading fixes it.
 
 Strong (+22.1 ± 8.5) and Weak (+19.7 ± 8.0) are direct changes to the count
 at the flag (a unit with Strong counts twice; Weak's target counts one less),
