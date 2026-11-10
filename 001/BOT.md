@@ -162,12 +162,25 @@ to cards in hand).
 The causal test is `tools/card_value.sh CARD`: the same deals with the card
 removed, and with it given to the second player after the draft. The
 difference in the second player's win rate is what having the card in hand
-is worth. It costs 400 games per card (about 30 minutes on one core). Results
-so far, for cards the two measures above rated strong, weak, or disagreed on
-(`cards/`; 200 paired games each with `mcts:400x4`, ± is a 95% interval, bold
-where it excludes 0; rebuilt by `tools/card_table.py`). Some cards were also
+is worth. It costs 400 games per card (about 30 minutes on one core).
+
+**Every card has been measured** (all 62 except the *Flag* and *Walk*;
+`cards/`, 200 paired games each with `mcts:400x4`, ± is a 95% interval, bold
+where it excludes 0; rebuilt by `tools/card_table.py`). Some were also
 measured with the stage 2 bot (net5, `cards-net/`) and under the fixed-flag
-variant (`cards-fixed-flag/`):
+variant (`cards-fixed-flag/`). In summary:
+
+- **Dominant (+18 to +31 points):** the cards that move the flag (Swap, Pull,
+  Heavy, Lift, and Trade in a strong player's hands) and the ones that change
+  the count at the flag (Strong, Weak, and Climb by burying enemies).
+- **Strong (+10 to +15):** Push, Bridge, Spotlight, Remote, Chain.
+- **Everything else** (about 45 cards) is within about ±8 points of zero:
+  200 games can't tell them apart, and none is measurably bad.
+
+So the game's balance problems are concentrated in one place, the flag: what
+moves it, and what changes who counts next to it. Fix the flag first, then
+re-run the survey (ideally with the stage 2 bot and 800 games per card, to
+rank the middle).
 
 <!-- cards -->
 | card | worth in hand (points) | with the stage 2 bot | with the flag fixed | relative lift (points) | learned value (log-odds) |
