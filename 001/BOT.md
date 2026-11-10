@@ -198,7 +198,12 @@ points matter more.
 | flag fixed, 2 points, target 6 | 44% (40–48%) | 15.2 | 20 |
 
 So with the flag fixed, the fair compensation is somewhere between 1 and 2
-points for these bots (a longer race doesn't dilute it). (With the stage 2 bot: running.)
+points for these bots (a longer race doesn't dilute it). **With the stronger
+stage 2 bot** (net10, 200 games each), fixing the flag moves the first player
+from 50% to 55% (48–61%) at 1 point, and 2 points brings it back to **50%
+(43–57%)**, with no stalemates and games of normal length. So for strong
+play, "fix the flag and give the second player 2 points" looks fair; weaker
+players may find it slightly favours the second player.
 
 <!-- cards -->
 | card | worth in hand (points) | with the stage 2 bot | with the flag fixed | relative lift (points) | learned value (log-odds) |
