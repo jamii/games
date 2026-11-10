@@ -179,6 +179,10 @@ pub struct Options {
     /// *Flag* power.
     #[serde(default)]
     pub fixed_flag: bool,
+    /// Rules variant: buried units (not on top of a stack) still count at the
+    /// flag, as plain units, instead of not counting.
+    #[serde(default)]
+    pub buried_count: bool,
 }
 
 fn default_automatic() -> bool {
@@ -209,6 +213,7 @@ impl Default for Options {
             given_first: Vec::new(),
             given_second: Vec::new(),
             fixed_flag: false,
+            buried_count: false,
         }
     }
 }

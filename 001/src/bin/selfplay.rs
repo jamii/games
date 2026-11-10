@@ -15,6 +15,7 @@
 //!   --target-score K
 //!   --remove NAME[,NAME]   leave these cards out of the deck
 //!   --fixed-flag           rules variant: no power can move the flag
+//!   --buried-count         rules variant: buried units still count at the flag
 //!   --give WHO:NAME[,...]  leave these cards out of the deck and give them to
 //!                          the first or second player (WHO is first or second)
 //!                          when the draft ends. Compare with --remove NAME on
@@ -395,6 +396,9 @@ fn main() {
     if args.iter().any(|a| a == "--fixed-flag") {
         options.fixed_flag = true;
     }
+    if args.iter().any(|a| a == "--buried-count") {
+        options.buried_count = true;
+    }
     if let Some(gifts) = arg("--give") {
         for gift in gifts.split(',') {
             match gift.split_once(':') {
@@ -417,6 +421,9 @@ fn main() {
         }
         if options.fixed_flag {
             v += ",fixed-flag";
+        }
+        if options.buried_count {
+            v += ",buried-count";
         }
         v
     });

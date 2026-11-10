@@ -15,3 +15,6 @@ __pycache__/
 /cards-fixed-flag-net/*.log
 /cards-fixed-flag-net/*.part
 /cards*/*.half
+/cards-buried-count/*.log
+/cards-buried-count/*.part
+/results/fixed-flag/*.part

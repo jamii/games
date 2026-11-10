@@ -1405,3 +1405,19 @@ fn with_a_fixed_flag_trade_cant_take_the_flag_power() {
         assert_eq!(g.unit(a).is_flag(), !fixed);
     }
 }
+
+#[test]
+fn buried_units_count_at_the_flag_only_in_the_variant() {
+    for variant in [false, true] {
+        let mut g = game();
+        g.options.buried_count = variant;
+        let flag = g.units.iter().find(|u| u.is_flag()).unwrap().id;
+        let (fx, fy) = at(&g, flag);
+        // An enemy next to the flag, with a unit of ours on top of it.
+        put(&mut g, Some(1), (fx - 2, fy), E, &[]);
+        put(&mut g, Some(0), (fx - 2, fy), E, &[]);
+        let counts = g.auto_flag_counts();
+        assert_eq!(counts[0], 1);
+        assert_eq!(counts[1], if variant { 1 } else { 0 }, "variant: {variant}");
+    }
+}

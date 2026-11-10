@@ -637,7 +637,8 @@ impl Game {
         };
         let fx = self.effects();
         let mut counts = [0, 0];
-        for id in self.top_ids() {
+        let tops = self.top_ids();
+        for &id in &tops {
             if id == flag || !self.adjacent(id, flag) {
                 continue;
             }
@@ -646,6 +647,19 @@ impl Game {
             for seat in 0..2 {
                 if sides[seat] {
                     counts[seat] += weight;
+                }
+            }
+        }
+        if self.options.buried_count {
+            // Buried units count once for their owner (their powers do nothing).
+            let flag_cell = self.unit(flag).cell;
+            for u in &self.units {
+                if let Some(owner) = u.owner
+                    && u.id != flag
+                    && !tops.contains(&u.id)
+                    && hex_dist(u.cell, flag_cell) == 1
+                {
+                    counts[owner] += 1;
                 }
             }
         }
