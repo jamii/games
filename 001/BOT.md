@@ -185,6 +185,21 @@ moves it, and what changes who counts next to it. Fix the flag first, then
 re-run the survey (ideally with the stage 2 bot and 800 games per card, to
 rank the middle).
 
+**Side effects of fixing the flag** (`--fixed-flag`, the same 600 deals,
+`results/fixed-flag/`): the flag-moving cards were partly a comeback
+mechanism, so without them the first player's edge grows, and the starting
+points matter more.
+
+| rules (stage 1 bot) | first player wins | turns | unfinished |
+|---|---|---|---|
+| current | 54% (50–58%) | 12.6 | 4 |
+| flag fixed | 60% (56–64%) | 13.5 | 12 |
+| flag fixed, second player starts with 2 | 45% (41–49%) | 12.6 | 14 |
+| flag fixed, 2 points, target 6 | 44% (40–48%) | 15.2 | 20 |
+
+So with the flag fixed, the fair compensation is somewhere between 1 and 2
+points for these bots (a longer race doesn't dilute it). (With the stage 2 bot: running.)
+
 <!-- cards -->
 | card | worth in hand (points) | with the stage 2 bot | with the flag fixed | relative lift (points) | learned value (log-odds) |
 |---|---|---|---|---|---|
