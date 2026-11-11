@@ -801,6 +801,74 @@ fn banish_split_trail_convert_and_the_unit_cap() {
 }
 
 #[test]
+fn six_unit_kills_say_why() {
+    // Split with five units: the split comes first in the log, then the kill
+    // and why, then the label the new unit takes.
+    let mut g = game();
+    let a = put(&mut g, Some(0), (-5, 2), E, &["Split", "Walk"]);
+    for x in [-5, -3, -1, 1] {
+        put(&mut g, Some(0), (x, 4), E, &[]);
+    }
+    activate(&mut g, a, E, 0).unwrap();
+    choose_label(&mut g, "Give it Split + Walk");
+    let i = prompt(&g)
+        .options
+        .iter()
+        .position(|o| o.unit == Some(a))
+        .unwrap();
+    let log = g.apply(0, &Action::Choose { index: i }).unwrap();
+    let at = |line: &str| {
+        log.iter()
+            .position(|l| l == line)
+            .unwrap_or_else(|| panic!("no \"{line}\" in {log:?}"))
+    };
+    assert!(at("A split off a new unit.") < at("A was killed (six units)."));
+    assert!(at("A was killed (six units).") < at("The new unit is now A."));
+    assert_eq!(g.unit(g.top_at(c(-3, 2)).unwrap()).label, "A");
+
+    // Spawning a sixth unit says so the same way.
+    let mut g = game();
+    let b = put(&mut g, Some(0), (-5, 2), E, &[]);
+    for x in [-5, -3, -1, 1] {
+        put(&mut g, Some(0), (x, 4), E, &[]);
+    }
+    g.apply(
+        0,
+        &Action::Spawn {
+            cell: c(-1, 0),
+            force: false,
+        },
+    )
+    .unwrap();
+    let i = prompt(&g)
+        .options
+        .iter()
+        .position(|o| o.unit == Some(b))
+        .unwrap();
+    let log = g.apply(0, &Action::Choose { index: i }).unwrap();
+    assert_eq!(
+        &log[..3],
+        [
+            "Letters spawned a new unit.",
+            "A was killed (six units).",
+            "The new unit is now A."
+        ]
+    );
+
+    // Without a sixth unit, nothing changes.
+    let mut g = game();
+    let a = put(&mut g, Some(0), (-5, 2), E, &["Split", "Walk"]);
+    activate(&mut g, a, E, 0).unwrap();
+    let i = prompt(&g)
+        .options
+        .iter()
+        .position(|o| o.label == "Give it Walk")
+        .unwrap();
+    let log = g.apply(0, &Action::Choose { index: i }).unwrap();
+    assert!(log.contains(&"A split off B.".to_string()), "{log:?}");
+}
+
+#[test]
 fn flag_powers_pacifist_recycle_mine_vacuum_nuke() {
     // Pacifist: killed units go home instead.
     let mut g = game();
