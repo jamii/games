@@ -1386,22 +1386,26 @@ impl Game {
     /// *Strong*. Other modifiers (*Weak*, *Friendly*, *Bridge*, ...) are left to
     /// the players.
     pub fn flag_counts(&self) -> [u32; 2] {
+        let mut counts = [0, 0];
+        for (_, owner, weight) in self.flag_units() {
+            counts[owner] += weight;
+        }
+        counts
+    }
+
+    /// The units that make up `flag_counts`: (unit, owner, how many it counts as).
+    pub fn flag_units(&self) -> Vec<(u32, Seat, u32)> {
         let adjacent: HashSet<Cell> = self
             .units
             .iter()
             .filter(|u| u.is_flag())
             .flat_map(|u| u.cell.neighbors())
             .collect();
-        let mut counts = [0, 0];
-        for unit in &self.units {
-            if let Some(owner) = unit.owner
-                && !unit.is_flag()
-                && adjacent.contains(&unit.cell)
-            {
-                counts[owner] += unit.weight();
-            }
-        }
-        counts
+        self.units
+            .iter()
+            .filter(|u| !u.is_flag() && adjacent.contains(&u.cell))
+            .filter_map(|u| u.owner.map(|owner| (u.id, owner, u.weight())))
+            .collect()
     }
 
     /// What a player is allowed to see: everything except the deck order and
@@ -1440,6 +1444,14 @@ impl Game {
         } else {
             shown.flag_counts()
         };
+        let flag_units: Vec<Value> = if self.automatic {
+            shown.auto_flag_units()
+        } else {
+            shown.flag_units()
+        }
+        .into_iter()
+        .map(|(unit, seat, weight)| json!({ "unit": unit, "seat": seat, "weight": weight }))
+        .collect();
         json!({
             "automatic": self.automatic,
             "phase": shown.phase,
@@ -1457,6 +1469,7 @@ impl Game {
             "free_powers": shown.free_powers,
             "spawned_this_turn": shown.spawned_this_turn,
             "flag_counts": flag_counts,
+            "flag_units": flag_units,
             "forbidden": shown.forbidden,
             "options": shown.options,
             "prompt": prompt,

@@ -532,6 +532,10 @@ button.big { padding: 8px 18px; font-size: 15px; font-weight: 700; border-radius
 #fx .floater.loss { color: var(--danger); }
 #fx .floater.point { color: #fff; background: var(--accent); border-color: var(--accent); font-size: 16px; }
 #fx .floater.used { color: #fff; background: #3a3936; border-color: #3a3936; }
+#fx .floater.count { color: #fff; font-size: 22px; line-height: 1.15; min-width: 1.5em; padding: 1px 8px; text-align: center; }
+#fx .floater.count.letters { background: var(--letters); border-color: var(--letters); }
+#fx .floater.count.numbers { background: var(--numbers); border-color: var(--numbers); }
+#fx .floater.none { color: var(--muted); }
 .ripple, .ghosts { pointer-events: none; }
 .ripple circle { fill: none; stroke-width: .08; }
 .ripple.letters circle { stroke: var(--letters); }
@@ -540,6 +544,8 @@ button.big { padding: 8px 18px; font-size: 15px; font-weight: 700; border-radius
 .ripple.neutral circle { stroke: var(--neutral); }
 .ripple.act circle { stroke-width: .12; }
 .ripple.death circle { stroke: var(--danger); stroke-width: .14; }
+.ripple.heavy circle, .ripple.stinky circle { stroke-width: .14; stroke-dasharray: .3 .18; }
+.ripple.count circle { stroke-width: .16; }
 .unit.dying .body { fill: #f3b3ad; stroke: var(--danger); }
 .pop { animation: pop .45s ease; }
 #preview { position: fixed; z-index: 30; pointer-events: none; display: none; }

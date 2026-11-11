@@ -465,6 +465,35 @@ fn heavy_and_stinky() {
 }
 
 #[test]
+fn end_of_turn_log_and_flag_units() {
+    // The log says which end-of-turn power moved units (the page animates it),
+    // and only when it moved something.
+    let mut g = game();
+    put(&mut g, Some(0), (-5, 4), E, &["Heavy"]);
+    put(&mut g, Some(1), (-1, 4), E, &[]);
+    let log = g.apply(0, &Action::EndTurn { score: false }).unwrap();
+    let at = |line: &str| log.iter().position(|l| l == line);
+    assert!(
+        at("A is heavy.").unwrap() < at("1 was moved.").unwrap(),
+        "{log:?}"
+    );
+
+    let mut g = game();
+    put(&mut g, Some(0), (5, 4), E, &["Stinky"]);
+    let log = g.apply(0, &Action::EndTurn { score: false }).unwrap();
+    assert!(!log.iter().any(|l| l.contains("stinky")), "{log:?}");
+
+    // The units counted at the flag add up to the flag counts.
+    let mut g = game();
+    let f = g.unit(flag(&g)).cell;
+    let a = put(&mut g, Some(0), (f.x - 2, f.y), E, &["Strong"]);
+    let b = put(&mut g, Some(1), (f.x + 2, f.y), E, &[]);
+    put(&mut g, Some(1), (f.x + 4, f.y), E, &[]);
+    assert_eq!(g.auto_flag_units(), vec![(a, 0, 2), (b, 1, 1)]);
+    assert_eq!(g.auto_flag_counts(), [2, 1]);
+}
+
+#[test]
 fn trade_stun_trigger_mystery() {
     let mut g = game();
     let a = put(&mut g, Some(0), (-5, 2), E, &["Trade", "Walk"]);
@@ -1452,7 +1481,11 @@ fn a_gripped_unit_cant_push_even_the_unit_gripping_it() {
     let e = activate(&mut g, a, E, 0).unwrap_err();
     assert!(e.message.contains("gripped"), "{}", e.message);
     assert_eq!(g.unit(gripper).cell, c(-3, 2));
-    assert!(!g.legal_actions(0).iter().any(|act| matches!(act, Action::Activate { unit, power: Some(_), .. } if *unit == a)));
+    assert!(
+        !g.legal_actions(0)
+            .iter()
+            .any(|act| matches!(act, Action::Activate { unit, power: Some(_), .. } if *unit == a))
+    );
 
     // Gripped from behind: the same.
     let mut g = game();

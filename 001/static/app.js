@@ -34,6 +34,7 @@ let renderPending = false;
 let toastTimer = null;
 let logLength = 0;
 let logSeen = null; // log entries already shown above the board
+const pace = { steps: [], queue: [] }; // the end of a turn playing out, and states waiting for it
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -122,12 +123,7 @@ function connect() {
     if (msg.type === 'init') {
       setInit(msg);
     } else if (msg.type === 'state') {
-      const prev = view, before = prev && init && !drag ? snapshot() : null;
-      view = msg;
-      cleanUpSelection();
-      render();
-      if (before) animate(prev, before);
-      else logSeen = view.log_total;
+      showState(msg);
     } else if (msg.type === 'error') {
       showToast(msg.message, msg.retry);
     } else if (msg.type === 'notice') {
@@ -139,6 +135,17 @@ function connect() {
     if (view) render();
     setTimeout(connect, 1000);
   };
+}
+
+function showState(msg) {
+  // While the end of a turn plays out, later states wait their turn.
+  if (pace.steps.length) { pace.queue.push(msg); return; }
+  const prev = view, before = prev && init && !drag ? snapshot() : null;
+  view = msg;
+  cleanUpSelection();
+  render();
+  if (before) animate(prev, before);
+  else logSeen = view.log_total;
 }
 
 function setInit(msg) {
@@ -884,10 +891,164 @@ function animate(prev, before) {
   const sameGame = me() === prev.you && p.options.seed === g.options.seed && g.turn >= p.turn;
   if (!sameGame || calm()) { ticker(newLines); return; }
   const after = snapshot();
-  animateUnits(p, g, before, after, newLines);
-  animateCards(p, g, before, after);
-  animateCounts(p, g);
-  ticker(newLines);
+  const end = endOfTurn(p, g, newLines);
+  animateUnits(p, g, before, after, newLines, end);
+  const wait = end ? playEndOfTurn(end, p, g, after) : 0;
+  animateCards(p, g, before, after, wait);
+  animateCounts(p, g, end, wait);
+  ticker(newLines, wait);
+}
+
+// ---------------------------------------------------------------------------
+// The end of a turn plays out in order: end-of-turn powers, then the flag is
+// counted (the ending player's units, then the other player's), then the
+// score, then the next turn. States that arrive meanwhile wait (pace.queue);
+// a tap anywhere skips to the end.
+// ---------------------------------------------------------------------------
+
+const POWER_STEP = 900, MOVE_AFTER = 350, COUNT_STEP = 340, SIDE_GAP = 260;
+
+// Runs `fn` after `ms` (now if 0); until it has run, new states wait.
+function later(ms, fn) {
+  if (!(ms > 0)) { fn(); return; }
+  const step = { fn, at: performance.now() + ms };
+  step.timer = setTimeout(() => {
+    pace.steps = pace.steps.filter(x => x !== step);
+    fn();
+    if (!pace.steps.length) showWaiting();
+  }, ms);
+  pace.steps.push(step);
+}
+
+function showWaiting() {
+  while (!pace.steps.length && pace.queue.length) showState(pace.queue.shift());
+}
+
+function skipAhead() {
+  if (!pace.steps.length) return;
+  const steps = pace.steps.sort((a, b) => a.at - b.at);
+  pace.steps = [];
+  for (const step of steps) { clearTimeout(step.timer); step.fn(); }
+  for (const a of document.getAnimations()) {
+    try { if (a.effect && a.effect.getComputedTiming().iterations !== Infinity) a.finish(); } catch (e) { /* already gone */ }
+  }
+  showWaiting();
+}
+// After the tap's click, so the click lands on what it was aimed at.
+document.addEventListener('pointerup', () => { if (pace.steps.length) setTimeout(skipAhead, 0); }, true);
+
+// The unit a log line names ("A", "The flag", "A neutral unit"), among `units`.
+function namedUnit(name, units, ok = () => true) {
+  const n = name.toLowerCase();
+  return units.find(u => ok(u) && n === (u.owner !== null ? u.label.toLowerCase() : isFlagUnit(u) ? 'the flag' : 'a neutral unit')) || null;
+}
+
+// What the end of a turn in these log lines did, and when each part plays.
+function endOfTurn(p, g, lines) {
+  const i = lines.findIndex(e => / ended their turn /.test(e.text));
+  if (i < 0) return null;
+  const m = /^(\w+) ended their turn (and scored|without scoring) \(flag: (\d+) vs (\d+)\)/.exec(lines[i].text);
+  const seat = m ? init.seat_names.indexOf(m[1]) : -1;
+  if (seat < 0) return null;
+  const end = { seat, powers: [], moves: new Map(), lastMove: 0 };
+  const cells = new Map(g.units.map(u => [u.id, u.cell]));
+  const moved = u => cells.has(u.id) && !sameCell(cells.get(u.id), u.cell);
+  let at = 0, current = null;
+  for (const e of lines.slice(0, i)) {
+    const pw = /^(.+) is (heavy|stinky)\.$/.exec(e.text);
+    if (pw) {
+      const name = pw[2] === 'heavy' ? 'Heavy' : 'Stinky';
+      current = { unit: namedUnit(pw[1], p.units, u => u.powers.some(q => P(q.power).name === name)), name, at };
+      end.powers.push(current);
+      at += POWER_STEP;
+      continue;
+    }
+    const mv = /^(.+) was moved\.$/.exec(e.text);
+    if (mv && current) {
+      const u = namedUnit(mv[1], p.units, u => moved(u) && !end.moves.has(u.id));
+      if (u) end.moves.set(u.id, current.at + MOVE_AFTER);
+    }
+  }
+  end.lastMove = current ? current.at + MOVE_AFTER : 0;
+  end.moveDelay = id => end.moves.get(id) ?? end.lastMove;
+  end.countFrom = current ? end.lastMove + 750 : 150;
+  return end;
+}
+
+// Plays the end-of-turn powers, the count at the flag and the score. Returns
+// when the next turn starts (ms from now).
+function playEndOfTurn(end, p, g, after) {
+  const s = end.seat;
+  const bodyOf = id => document.querySelector(`#board .unit[data-unit="${id}"] .body`);
+  const bar = seat => document.querySelector(`.seat[data-seat="${seat}"]`);
+  const scoreEl = () => { const b = bar(s); return b && b.querySelector(`[data-score="${s}"]`); };
+  const setScore = v => { const el = scoreEl(); if (el && el.firstChild && el.firstChild.nodeType === 3) el.firstChild.nodeValue = String(v); };
+  const setStat = (seat, n, pop = true) => {
+    const el = bar(seat) && bar(seat).querySelector('[data-count="flag"]');
+    if (!el) return;
+    el.textContent = String(n);
+    if (pop) popEl(el, 1.6);
+  };
+  const pulse = el => { if (el) el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.28)' }, { transform: 'scale(1)' }], { duration: 360, easing: 'ease-out' }); };
+
+  // The powers, one at a time; the units they move follow (animateUnits).
+  for (const pw of end.powers) {
+    const u = pw.unit;
+    const was = u && p.units.find(x => x.id === u.id);
+    if (!was) continue;
+    later(pw.at, () => {
+      const el = document.querySelector(`#board .unit[data-unit="${u.id}"]`);
+      const [x, y] = el ? [+el.dataset.x, +el.dataset.y] : toScreen(was.cell);
+      ripple(x, y, ownerKey(u), pw.name.toLowerCase());
+      pulse(bodyOf(u.id));
+      floater(pw.name, bodyOf(u.id), 'used');
+    });
+  }
+
+  // The count at the flag: the ending player's units, then the other player's.
+  setScore(p.scores[s]);
+  let t = end.countFrom;
+  const flag = g.units.find(isFlagUnit);
+  const flagAt = flag && after.units.get(flag.id);
+  if (flagAt) {
+    later(t, () => { setStat(0, 0, false); setStat(1, 0, false); });
+    const around = f => (Math.atan2(f.at.x - flagAt.x, flagAt.y - f.at.y) + 2 * Math.PI) % (2 * Math.PI);
+    for (const seat of [s, 1 - s]) {
+      const list = (g.flag_units || [])
+        .filter(f => f.seat === seat && f.weight > 0 && after.units.has(f.unit))
+        .map(f => ({ ...f, at: after.units.get(f.unit) }))
+        .sort((a, b) => around(a) - around(b));
+      const cls = `count ${SEAT_KEYS[seat]}`;
+      if (!list.length) {
+        later(t, () => { setStat(seat, 0); floater('0', bodyOf(flag.id), cls); });
+        t += COUNT_STEP;
+      }
+      let n = 0;
+      for (const f of list) {
+        n += f.weight;
+        const shown = n;
+        later(t, () => {
+          ripple(f.at.x, f.at.y, SEAT_KEYS[seat], 'count');
+          pulse(bodyOf(f.unit));
+          floater(String(shown), bodyOf(f.unit), cls);
+          setStat(seat, shown);
+        });
+        t += COUNT_STEP;
+      }
+      t += SIDE_GAP;
+    }
+  }
+
+  // The score.
+  later(t, () => {
+    setScore(g.scores[s]);
+    const d = g.scores[s] - p.scores[s];
+    if (d > 0) { popEl(scoreEl(), 1.8); floater(`+${plural(d, 'point')}`, scoreEl(), 'point'); }
+    else floater('No point', scoreEl(), 'none');
+  });
+  t += 650;
+  later(t + 450, () => {}); // the next turn's cards land before later states show
+  return t;
 }
 
 // The log's lines since the last state, with the seat whose action they came from.
@@ -898,7 +1059,7 @@ function newLogLines() {
   return n ? view.log.slice(-n) : [];
 }
 
-function animateUnits(p, g, before, after, lines) {
+function animateUnits(p, g, before, after, lines, end) {
   const svg = $('board');
   const oldUnits = new Map(p.units.map(u => [u.id, u]));
   // The power each unit just used, from the log ("A activated and used Walk: …").
@@ -911,19 +1072,22 @@ function animateUnits(p, g, before, after, lines) {
     const old = before.units.get(id), u = unitById(id), was = oldUnits.get(id);
     const at = `translate(${now.x}px, ${now.y}px)`;
     if (!old || !was) {
+      const delay = end ? end.lastMove : 0;
       now.el.animate([
         { transform: `${at} scale(0)` }, { transform: `${at} scale(1.25)`, offset: 0.6 }, { transform: `${at} scale(1)` },
-      ], { duration: 460, easing: 'ease-out' });
-      ripple(now.x, now.y, ownerKey(u));
+      ], { duration: 460, delay, easing: 'ease-out', fill: 'backwards' });
+      later(delay, () => ripple(now.x, now.y, ownerKey(u)));
       continue;
     }
     if (old.x !== now.x || old.y !== now.y) {
       const lift = Math.min(0.6, Math.hypot(now.x - old.x, now.y - old.y) * 0.12);
+      // Moved by an end-of-turn power: it waits for the power to go off.
+      const delay = end ? end.moveDelay(id) : 0;
       now.el.animate([
         { transform: `translate(${old.x}px, ${old.y}px)` },
         { transform: `translate(${(old.x + now.x) / 2}px, ${(old.y + now.y) / 2 - lift}px) scale(1.12)`, offset: 0.5 },
         { transform: at },
-      ], { duration: 420, easing: 'ease-in-out' });
+      ], { duration: 420, delay, easing: 'ease-in-out', fill: 'backwards' });
     }
     if (old.angle !== now.angle) {
       const d = ((now.angle - old.angle) % 360 + 540) % 360 - 180;
@@ -953,12 +1117,13 @@ function animateUnits(p, g, before, after, lines) {
     el.removeAttribute('data-unit');
     el.classList.add('dying');
     const at = `translate(${old.x}px, ${old.y}px)`;
+    const delay = end ? end.lastMove : 0;
     el.animate([
       { transform: `${at} scale(1)`, opacity: 1 },
       { transform: `${at} scale(1.3)`, opacity: 1, offset: 0.3 },
       { transform: `${at} scale(.1)`, opacity: 0 },
-    ], { duration: 700, easing: 'ease-in', fill: 'forwards' }).onfinish = () => el.remove();
-    ripple(old.x, old.y, 'death');
+    ], { duration: 700, delay, easing: 'ease-in', fill: 'both' }).onfinish = () => el.remove();
+    later(delay, () => ripple(old.x, old.y, 'death'));
   }
 }
 
@@ -976,8 +1141,13 @@ function ripple(x, y, cls, kind = 'spawn') {
   g.setAttribute('transform', `translate(${x},${y})`);
   g.innerHTML = '<circle r="0.62"/>';
   svg.appendChild(g);
-  g.firstChild.animate([{ transform: 'scale(1)', opacity: 0.9 }, { transform: `scale(${kind === 'death' ? 2.4 : 1.9})`, opacity: 0 }],
-    { duration: kind === 'act' ? 650 : 750, easing: 'ease-out' }).onfinish = () => g.remove();
+  const frames = {
+    heavy: [{ transform: 'scale(3.6)', opacity: 0 }, { transform: 'scale(2.6)', opacity: 0.9, offset: 0.3 }, { transform: 'scale(1)', opacity: 0 }],
+    stinky: [{ transform: 'scale(1)', opacity: 0.9 }, { transform: 'scale(3.6)', opacity: 0 }],
+    count: [{ transform: 'scale(.9)', opacity: 1 }, { transform: 'scale(1.5)', opacity: 0 }],
+  }[kind] || [{ transform: 'scale(1)', opacity: 0.9 }, { transform: `scale(${kind === 'death' ? 2.4 : 1.9})`, opacity: 0 }];
+  const duration = { act: 650, heavy: 800, stinky: 800, count: 520 }[kind] || 750;
+  g.firstChild.animate(frames, { duration, easing: 'ease-out' }).onfinish = () => g.remove();
 }
 
 // A word that rises from a spot on the screen and fades.
@@ -1004,8 +1174,14 @@ function popEl(el, scale = 1.4) {
 
 // A card flies from one place to another. `via` holds it, enlarged, over the
 // board on the way (to show the card the other player just played).
-function fly(html, from, to, { delay = 0, via = null, land = null, fade = false } = {}) {
+function fly(html, from, to, { delay = 0, via = null, land = null, fade = false, wait = 0 } = {}) {
   if (!shown(from) || !shown(to)) return;
+  if (wait > 0) {
+    // Not shown until the end of the turn has played out (but where it lands stays empty).
+    if (land) { arriving.add(land); hideArriving(); }
+    later(wait, () => fly(html, from, to, { delay, via, land, fade }));
+    return;
+  }
   const fit = r => Math.min(r.width / FLY_W, r.height / FLY_H);
   const pos = (r, k, lift = 0) => `translate(${r.left + r.width / 2 - FLY_W / 2}px, ${r.top + r.height / 2 - FLY_H / 2 - lift}px) scale(${k})`;
   const el = document.createElement('div');
@@ -1046,15 +1222,16 @@ function fly(html, from, to, { delay = 0, via = null, land = null, fade = false 
 }
 
 const BACK = '<div class="card back"></div>';
+const hiddenPlace = place => place.kind === 'deck' || place.kind === 'backs';
 
-function animateCards(p, g, before, after) {
+function animateCards(p, g, before, after, wait = 0) {
   // Cards that slid along (the market row, your hand): from their old spot to the new.
   for (const [k, now] of after.flip) {
     const old = before.flip.get(k);
     if (!old || !shown(old.rect) || !shown(now.rect)) continue;
     const dx = old.rect.left - now.rect.left, dy = old.rect.top - now.rect.top;
     if (Math.abs(dx) + Math.abs(dy) > 2) {
-      now.el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 380, easing: EASE });
+      now.el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 380, delay: wait, easing: EASE, fill: 'backwards' });
     }
   }
 
@@ -1085,21 +1262,24 @@ function animateCards(p, g, before, after) {
   for (const m of moves) {
     const from = m.a || hiddenFrom(), to = m.b || hiddenTo();
     if (!from || !to) continue;
-    const face = !(from.kind === 'deck' || from.kind === 'backs') || !(to.kind === 'deck' || to.kind === 'backs');
+    const face = !hiddenPlace(from) || !hiddenPlace(to);
     const html = face ? cardHtml(m.c) : BACK;
     // The other player's card arriving on the board: hold it up where you can read it.
     const via = from.kind === 'backs' && to.kind === 'unit' && opponentPlays ? viaRect(after) : null;
     fly(html, placeRect(from, m.c, before), placeRect(to, m.c, after), {
       land: placeKey(to, m.c),
       via,
-      delay: from.kind === 'deck' && to.kind === 'market' ? 260 : 0,
+      // After the end of a turn: a card that was showing waits where it was;
+      // one from the deck or a hidden hand appears when it sets off.
+      delay: (from.kind === 'deck' && to.kind === 'market' ? 260 : 0) + (hiddenPlace(from) ? 0 : wait),
+      wait: hiddenPlace(from) ? wait : 0,
       fade: to.kind === 'unit',
     });
   }
   // Draws this browser can't see: card backs from the deck to that hand.
   for (const seat of hidden) {
     for (let i = 0; i < handDelta[seat] && deckDelta < 0; i++, deckDelta++) {
-      fly(BACK, before.deck, after.backs[seat], { delay: i * 120 });
+      fly(BACK, before.deck, after.backs[seat], { delay: i * 120, wait });
     }
   }
   // Free powers (never cards) that a unit gained come from the free card.
@@ -1111,7 +1291,7 @@ function animateCards(p, g, before, after) {
     for (const pw of added) {
       const src = placeRect({ kind: 'free' }, pw, before);
       fly(cardHtml(pw, { free: true }), src, placeRect({ kind: 'unit', id: u.id }, pw, after),
-        { fade: true, via: opponentPlays ? viaRect(after) : null });
+        { fade: true, via: opponentPlays ? viaRect(after) : null, wait });
     }
   }
 }
@@ -1124,25 +1304,29 @@ function viaRect(snap) {
   return { left: b.left + b.width / 2 - w / 2, top: b.top + b.height * 0.42 - h / 2, width: w, height: h };
 }
 
-function animateCounts(p, g) {
+function animateCounts(p, g, end, wait = 0) {
   for (const seat of [0, 1]) {
     const bar = document.querySelector(`.seat[data-seat="${seat}"]`);
     if (!bar) continue;
+    // The end of a turn counts the flag and scores step by step (playEndOfTurn).
+    if (end && end.seat === seat) continue;
     const score = bar.querySelector(`[data-score="${seat}"]`);
     const d = g.scores[seat] - p.scores[seat];
     if (d) { popEl(score, 1.6); floater(`${d > 0 ? '+' : '−'}${Math.abs(d)} point${Math.abs(d) === 1 ? '' : 's'}`, score, d > 0 ? 'point' : 'loss'); }
-    if (g.flag_counts[seat] !== p.flag_counts[seat]) popEl(bar.querySelector('[data-count="flag"]'), 1.7);
+    if (!end && g.flag_counts[seat] !== p.flag_counts[seat]) popEl(bar.querySelector('[data-count="flag"]'), 1.7);
     if (g.hand_counts[seat] !== p.hand_counts[seat]) popEl(bar.querySelector('[data-count="hand"]'), 1.5);
   }
-  const deck = document.querySelector('#market [data-act="deck"] .pile-n');
-  if (g.deck_count !== p.deck_count) popEl(deck, 1.3);
-  const discard = document.querySelector('#market [data-act="discard-pile"] .pile-n');
-  if (g.discard.length !== p.discard.length) popEl(discard, 1.3);
+  later(wait, () => {
+    const deck = document.querySelector('#market [data-act="deck"] .pile-n');
+    if (g.deck_count !== p.deck_count) popEl(deck, 1.3);
+    const discard = document.querySelector('#market [data-act="discard-pile"] .pile-n');
+    if (g.discard.length !== p.discard.length) popEl(discard, 1.3);
+  });
 }
 
 // What just happened, in one line above the board (the log's new lines, short),
 // and a banner over the board for each new turn.
-function ticker(lines) {
+function ticker(lines, wait = 0) {
   const parts = [];
   let batchSeat = null, first = true, seatKey = '';
   for (const e of lines) {
@@ -1150,7 +1334,7 @@ function ticker(lines) {
     const win = /^(\w+) wins!$/.exec(e.text);
     if (turn || win) {
       const seat = init.seat_names.indexOf((turn || win)[1]);
-      if (seat >= 0) banner(win ? `${seatName(seat)} wins!` : seat === me() ? 'Your turn' : `${possessive(seatName(seat))} turn`, SEAT_KEYS[seat], !!win);
+      if (seat >= 0) later(wait, () => banner(win ? `${seatName(seat)} wins!` : seat === me() ? 'Your turn' : `${possessive(seatName(seat))} turn`, SEAT_KEYS[seat], !!win));
       continue;
     }
     // Your own action needs no telling, but what it caused does.
