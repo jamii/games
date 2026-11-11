@@ -7,7 +7,9 @@
 //   node tests/single_player.js
 //
 // Then, on a phone: everything fits on the screen without scrolling, and the
-// bot's moves are animated. And with a stand-in for the artifact's database,
+// bot's moves are animated. And possessing the flag (Possess + Stalker): the
+// board keeps redrawing after a press released outside it, and picking a card
+// then clicking the full flag explains why instead of an empty dialog. And with a stand-in for the artifact's database,
 // a line typed in the chat goes in the log and is saved there as a note that
 // replays the game (without one, it only goes in the log).
 //
@@ -104,6 +106,7 @@ function rand() {
 
   await phoneCheck(browser, errors);
   await notesCheck(browser, errors);
+  await possessFlagCheck(browser, errors);
 
   if (botTurns < 2) throw new Error('the bot did not take its turns');
   if (final.phase.kind !== 'over') throw new Error('the game did not finish');
@@ -199,4 +202,84 @@ async function notesCheck(browser, errors) {
   if (!b.context.showing || !b.context.screen || !Array.isArray(b.log) || !b.log.length) throw new Error('the note does not say what the screen showed');
   if (!b.context.selected || b.context.selected.unit !== unit) throw new Error('the note does not say which unit was selected');
   if (!/Saved/.test(toast)) throw new Error(`unexpected toast: ${toast}`);
+}
+
+// Jamie's report: "I used possess and stalker to possess the flag and the game
+// crashed." Possess the flag through the UI, then check the two ways the page
+// could look stuck: a press on the board released outside it used to stop the
+// board redrawing, and a card applied to the full flag opened a "Replace a
+// power" dialog with nothing to choose.
+async function possessFlagCheck(browser, errors) {
+  const page = await (await browser.newContext({ viewport: { width: 1728, height: 1075 } })).newPage();
+  page.on('pageerror', e => errors.push(`possess: ${e.message}`));
+  await page.goto(URL);
+  await page.waitForFunction(() => typeof view !== 'undefined' && view && view.you === 0 && view.seats[1].bot, null, { timeout: 30000 });
+  const [POSSESS, STALKER] = await page.evaluate(() => ['Possess', 'Stalker'].map(n => init.powers.findIndex(p => p.name === n)));
+  await page.evaluate(o => send({ type: 'new_game', options: o }),
+    { automatic: true, first_player: 0, seed: 3, given_first: [POSSESS, STALKER] });
+  await page.waitForFunction(() => view.game.options.seed === 3 && view.game.phase.kind === 'draft');
+  // Take faceup cards until it's my main phase.
+  const toMain = async turn => {
+    for (let i = 0; i < 400; i++) {
+      const s = await page.evaluate(() => ({ phase: view.game.phase.kind, current: view.game.current, turn: view.game.turn, thinking: view.seats[1].thinking }));
+      if (s.phase === 'main' && s.current === 0 && s.turn >= turn) return;
+      if (s.current === 0 && !s.thinking && s.phase !== 'main') await page.click('#market .card.takeable[data-act=faceup]', { timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(200);
+    }
+    throw new Error('possess: never got to my turn');
+  };
+  const spawn = async () => {
+    await page.click('#board .cell.spawnable[data-cell="0,1"] polygon');
+    await page.click('button[data-act=spawn]');
+    await page.waitForFunction(() => view.game.units.some(u => u.owner === 0 && u.cell.x === 0 && u.cell.y === 1));
+    return page.evaluate(() => view.game.units.find(u => u.owner === 0 && u.cell.x === 0 && u.cell.y === 1).id);
+  };
+  await toMain(1);
+  const me = await spawn();
+  for (const card of [POSSESS, STALKER]) {
+    await page.click(`#hand .card[data-act=hand][data-card="${card}"]`);
+    await page.click(`#board .unit[data-unit="${me}"] .body`);
+    await page.waitForFunction(([id, c]) => view.game.units.find(u => u.id === id).powers.some(p => p.power === c), [me, card]);
+  }
+  await page.click(`#board .unit[data-unit="${me}"] .body`);
+  await page.click(`#inspector button[data-act=use][data-index="0"]`);
+  await page.waitForFunction(id => !view.game.units.some(u => u.id === id), me);
+  const flag = await page.evaluate(() => view.game.units.find(u => u.powers.some(p => p.power === init.flag)));
+  if (flag.owner !== null || flag.powers.length !== 3) throw new Error(`possess: the flag after possessing it: ${JSON.stringify(flag)}`);
+  await page.waitForTimeout(1000);
+
+  // Press on the flag, let go over the side panel, end the turn: the bot's
+  // turn has to show.
+  const b = await page.locator(`#board .unit[data-unit="${flag.id}"] .body`).boundingBox();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  const side = await page.locator('#inspector').boundingBox();
+  await page.mouse.move(side.x + side.width / 2, side.y + 40, { steps: 8 });
+  await page.mouse.up();
+  await page.click('button[data-act=end-turn]');
+  await page.click('.modal-box button[data-modal=end]');
+  await page.waitForFunction(() => view.game.current === 0 && view.game.turn >= 3, null, { timeout: 120000 });
+  await page.waitForTimeout(1000);
+  const shown = await page.evaluate(() => ({
+    drawn: document.querySelectorAll('#board .unit[data-unit]').length,
+    phase: document.querySelector('#topbar .phase').textContent,
+  }));
+  if (/turn 1\b/.test(shown.phase) || shown.drawn === 0) throw new Error(`possess: the board stopped redrawing after a press released outside it: ${JSON.stringify(shown)}`);
+
+  // Pick a card (a unit at home makes it usable) and click the full flag.
+  await toMain(3);
+  await spawn();
+  const card = await page.evaluate(() => view.game.hand[0]);
+  await page.click(`#hand .card[data-act=hand][data-card="${card}"]`);
+  const now = await page.evaluate(() => view.game.units.find(u => u.powers.some(p => p.power === init.flag)));
+  if (now.owner === null && now.powers.length === 3) {
+    await page.click(`#board .unit[data-unit="${now.id}"] .body`);
+    await page.waitForFunction(() => !document.getElementById('toast').hidden, null, { timeout: 5000 });
+    const toast = (await page.textContent('#toast span')).trim();
+    if (await page.$('.modal-box')) throw new Error('possess: a "Replace a power" dialog opened for the flag');
+    console.log(`possess: the flag is still full, and applying a card to it says "${toast}"`);
+  } else {
+    console.log(`possess: the bot changed the flag (${JSON.stringify(now.powers.map(p => p.power))}), so the full-flag click wasn't checked`);
+  }
+  console.log(`possess: the board followed the bot's turn after a press released outside it (${shown.phase})`);
 }

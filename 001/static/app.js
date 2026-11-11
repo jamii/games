@@ -1230,8 +1230,11 @@ function applyToUnit(m, u) {
     ? { type: 'apply_hand', card: m.card, unit: u.id, replace }
     : { type: 'apply_free', power: m.power, unit: u.id, replace });
   const name = P(m.kind === 'apply-hand' ? m.card : m.power).name;
-  if (u.powers.length >= init.max_powers) {
-    const allowed = auto() ? applyTargets(m).filter(a => a.unit === u.id).map(a => a.replace) : null;
+  const allowed = auto() ? applyTargets(m).filter(a => a.unit === u.id).map(a => a.replace) : null;
+  // A full unit that can't take the power (eg the flag after it was possessed):
+  // send it anyway, as for any other unit, so the reply says why, rather than
+  // opening a "Replace a power" dialog with nothing to choose.
+  if (u.powers.length >= init.max_powers && !(allowed && allowed.length === 0)) {
     choosePower(u, `Replace a power on ${unitName(u)}`,
       `${esc(unitName(u))} already has ${init.max_powers} powers. Which one should ${esc(name)} replace? (Replaced cards are discarded.)`,
       i => act(build(i)), allowed);
@@ -1480,6 +1483,18 @@ function setupBoard() {
     drag.done = true;
     finish(drag);
   });
+  // A press released outside the board (eg starting to drag the flag, then
+  // letting go over the side panel) isn't a click, but the gesture still has to
+  // end: the board doesn't redraw while one is under way. The board's own
+  // pointerup runs first for a release on the board. Losing focus mid-press
+  // ends it too, since the release may never arrive.
+  const abandon = e => {
+    if (!drag || drag.done || (e.pointerId !== undefined && e.pointerId !== drag.pointer)) return;
+    drag.done = true;
+    finish(drag);
+  };
+  window.addEventListener('pointerup', abandon);
+  window.addEventListener('blur', abandon);
   // Taps are handled by the pointer events above. Without this, the browser follows a
   // tap with a synthetic click, which would land on (and close) any dialog the tap opened.
   svg.addEventListener('touchend', e => { if (e.cancelable) e.preventDefault(); }, { passive: false });
