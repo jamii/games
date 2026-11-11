@@ -1442,3 +1442,29 @@ fn pull_with_colorblind_pulls_the_flag_one_space() {
     let refusal = activate(&mut g, a, E, 0).unwrap_err().message;
     assert!(refusal.contains("one space"), "{refusal}");
 }
+
+#[test]
+fn a_gripped_unit_cant_push_even_the_unit_gripping_it() {
+    // Pushing the gripper away would end the grip before the pusher follows.
+    let mut g = game();
+    let a = put(&mut g, Some(0), (-5, 2), E, &["Push"]);
+    let gripper = put(&mut g, Some(1), (-3, 2), W, &["Grip"]);
+    let e = activate(&mut g, a, E, 0).unwrap_err();
+    assert!(e.message.contains("gripped"), "{}", e.message);
+    assert_eq!(g.unit(gripper).cell, c(-3, 2));
+    assert!(!g.legal_actions(0).iter().any(|act| matches!(act, Action::Activate { unit, power: Some(_), .. } if *unit == a)));
+
+    // Gripped from behind: the same.
+    let mut g = game();
+    let a = put(&mut g, Some(0), (-5, 2), E, &["Push"]);
+    put(&mut g, Some(1), (-7, 2), E, &["Grip"]);
+    put(&mut g, None, (-3, 2), E, &[]);
+    assert!(activate(&mut g, a, E, 0).is_err());
+
+    // Not gripped: it pushes and follows.
+    let mut g = game();
+    let a = put(&mut g, Some(0), (-5, 2), E, &["Push"]);
+    put(&mut g, Some(1), (-3, 2), E, &["Grip"]);
+    activate(&mut g, a, E, 0).unwrap();
+    assert_eq!(g.unit(a).cell, c(-3, 2));
+}

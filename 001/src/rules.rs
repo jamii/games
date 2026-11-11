@@ -2047,6 +2047,11 @@ impl Game {
                 self.do_moves(&[(user, there), (target, cell)], user, ctx)
             }
             Push => {
+                // Push moves the targets before the user follows, so check the grip
+                // first: pushing away the unit that grips it mustn't free the user.
+                if self.effects().gripped.contains(&user) {
+                    return illegal("A gripped unit can't move itself, so it can't push.");
+                }
                 let targets = self.all_targets(user, origin)?;
                 let mut first_space = None;
                 for t in targets {

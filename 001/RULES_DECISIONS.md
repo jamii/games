@@ -108,6 +108,8 @@ Tests for most of these are in `src/rules/tests.rs`.
 - The user moves itself; any other unit moved by its power "was moved" by the user.
 - *Grip* stops a unit moving itself. *Stubborn* stops it being moved by others (including by
   *Leader*, *Heavy* and *Stinky*). Both make the whole power fail.
+- A gripped unit can't *Push*, since it would have to follow. This is checked before the
+  push, so pushing away the unit that grips it doesn't free it to follow.
 - *Flag*: the flag holder can't move more than one space in total per turn, counting the
   distance of every move. A power that would break this fails.
 - Moves happen one unit at a time unless the power moves several units together (*Swap*).
