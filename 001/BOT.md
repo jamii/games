@@ -240,6 +240,7 @@ players may find it slightly favours the second player.
 | Jump | **+9.1 ± 8.2** | +0.0 ± 8.2 |  |  | -7 | +0.15 |
 | Run | **+9.1 ± 8.8** | -5.0 ± 8.3 |  |  | -8 | +0.31 |
 | Spin | +4.5 ± 6.7 | **+9.0 ± 7.5** |  |  | -5 | -0.45 |
+| Stun | -6.5 ± 8.0 | **+9.0 ± 8.8** |  |  | -7 | -0.15 |
 | Beam | **+8.5 ± 7.1** | +2.5 ± 8.0 |  |  | -3 | +0.14 |
 | Fast | +3.0 ± 6.7 | +8.5 ± 8.7 |  |  | +1 | +0.10 |
 | Telepath | **+8.1 ± 7.3** | +1.5 ± 8.0 |  |  | +10 | -0.13 |
@@ -282,7 +283,6 @@ players may find it slightly favours the second player.
 | Recycle | -1.5 ± 6.5 | **-9.5 ± 7.9** |  |  | +13 | -1.00 |
 | Burrow | -2.5 ± 8.0 | -5.0 ± 8.3 | -3.0 ± 8.6 |  | -11 | -0.04 |
 | Explosive | -4.0 ± 6.7 | -4.5 ± 7.8 |  |  | +11 | +0.72 |
-| Stun | -6.5 ± 8.0 |  |  |  | -7 | -0.15 |
 <!-- /cards -->
 
 **Swap and Heavy are balance problems, and the cause is moving the flag.**
