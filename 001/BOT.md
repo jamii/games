@@ -250,7 +250,7 @@ players may find it slightly favours the second player.
 | Trigger | +5.5 ± 7.8 | +3.5 ± 8.1 |  |  | -3 | +0.09 |
 | Grip | +5.1 ± 5.9 | -6.5 ± 8.7 |  |  | +12 | -0.66 |
 | Jammer | +4.6 ± 5.9 | -4.5 ± 7.6 |  |  | +17 | -0.03 |
-| Catapult | +4.5 ± 7.4 |  |  |  | -5 | +0.42 |
+| Catapult | +4.5 ± 7.4 | +1.5 ± 8.3 |  |  | -5 | +0.42 |
 | Stalker | +4.0 ± 7.0 |  |  |  | +4 | -0.28 |
 | Friendly | +3.6 ± 6.2 |  |  |  | +12 | +0.04 |
 | Lifeguard | +3.6 ± 6.0 |  |  |  | +12 | +0.11 |
