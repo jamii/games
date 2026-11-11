@@ -63,7 +63,8 @@ Powers are either active or passive:
 
 Powers either activate entirely or not at all. 
 Eg *Push* can't be activated unless there is an empty space behind the pushed unit.
-Eg *Push* with *Beam* can't be activated unless there is an empty space behind *every* pushed unit.
+Eg *Push* with *Beam* can't be activated unless there is an empty space behind *every* pushed unit. 
+  Check from the farthest away unit first - you can *Push* a whole line of units. Similarly for *Pull* - check the closeest unit first.
 
 If a power says 'target unit', by default this is the unit directly in front of you. But some passive powers may modify the target.
 If there is more than one target-modifying passive on a unit, take the union of all the targets.
