@@ -22,6 +22,14 @@ balance problems. The plan has two stages:
   +19, Strong +19, Pull +14, Swap +12, Weak +10, Lift +9). With the flag fixed
   in place and the *Flag* power not tradeable, the four flag-movers we
   re-measured drop back in line. See [Cards](#cards) and RULES_DECISIONS.md.
+- **With the best trained bot (net10) on both sides, two cards stand out:
+  *Heavy* (+31.5) and *Trade* (+26.6)**, both through the flag, and both drop
+  to about 0 with the flag fixed. Nine more are worth +9 to +14 (*Split*,
+  *Colorblind*, *Pull*, *Strong*, *Lift*, *Remote*, *Swap*, *Spin*, *Stun*);
+  tricks a strong opponent can see coming lose their value (*Push* +15 → 0,
+  *Bridge* +13 → −5, *Weak* +20 → +5), and *Split* goes from nothing to +14
+  once the bot knows how to use it. Only *Recycle* measures as harmful (−9.5),
+  probably because the bot plays it when it shouldn't.
 - **Climb needs a rules decision, but it's less urgent**: it's worth +20
   against the stage 1 bot because we read "buried units don't count at the
   flag", which the rules text doesn't settle (if they do count, it drops to +9).
@@ -178,10 +186,9 @@ is worth. It costs 400 games per card (about 30 minutes on one core).
 **Every card has been measured** (all 62 except the *Flag* and *Walk*;
 `cards/`, 200 paired games each with `mcts:400x4`, ± is a 95% interval, bold
 where it excludes 0; rebuilt by `tools/card_table.py`). They're being
-measured again with the best trained bot (net10, `cards-net10/`, in progress,
-strongest cards first); some were measured with an earlier one (net5,
-`cards-net/`) and under the fixed-flag variant (`cards-fixed-flag/`). In
-summary:
+measured again with the best trained bot on both sides (net10, `cards-net10/`,
+all 62); some were measured with an earlier one (net5, `cards-net/`) and under
+the fixed-flag variant (`cards-fixed-flag/`). In summary:
 
 - **Dominant (+18 to +31 points):** the cards that move the flag (Swap, Pull,
   Heavy, Lift, and Trade in a strong player's hands) and the ones that change
@@ -189,14 +196,31 @@ summary:
 - **Strong (+10 to +15):** Push, Bridge, Spotlight, Remote, Chain.
 - **Everything else** (about 45 cards) is within about ±8 points of zero:
   200 games can't tell them apart, and none is measurably bad.
-- **With the stage 2 bot** (top cards only) the effects shrink but stay
-  significant: Trade +29.5, Heavy +19.0, Strong +18.5, Pull +14.0, Swap
+- **With an early stage 2 bot** (net5, top cards only) the effects shrink but
+  stay significant: Trade +29.5, Heavy +19.0, Strong +18.5, Pull +14.0, Swap
   +11.5, Weak +10.0, Lift +9.0; Climb drops to +3.0.
+- **With the best trained bot** (net10, every card): Heavy +31.5 and Trade
+  +26.6 are in a class of their own. Then Split +14.0, Colorblind +13.6, Pull
+  +12.0, Strong +11.0, Lift +10.0, Remote +10.0, Swap +9.5, Spin +9.0 and Stun
+  +9.0, all just clear of zero (with 62 cards, two or three of these could be
+  chance). The rankings agree only loosely with the stage 1 bot's (correlation
+  0.46), and the average card is worth less (+3.0 against +5.8): a strong
+  opponent defends against tricks it can see coming (Push +14.6 → 0.0, Bridge
+  +12.6 → −5.0, Weak +19.7 → +5.0, Climb +20.3 → +6.5), while cards that need
+  skill gain (Split −2.5 → +14.0, Stun −6.5 → +9.0, Trade +10.0 → +26.6). Only
+  Recycle is measurably harmful (−9.5 ± 7.9): an extra card can't hurt a hand
+  played well, so the bot must be playing it when it shouldn't (the network
+  also rates it the worst card, at −1.00), or it's one of the expected chance
+  results. Push and Grip were measured before a fix to a gripped unit pushing
+  the unit that grips it; it's rare enough not to change either number.
 
 So the game's balance problems are concentrated in one place, the flag: what
-moves it, and what changes who counts next to it. Fix the flag first, then
-re-run the survey (ideally with the stage 2 bot and 800 games per card, to
-rank the middle).
+moves it, and what changes who counts next to it. The trained bot's survey
+agrees: its two dominant cards both work through the flag (Heavy pulls units,
+the flag included, towards its unit; Trade takes the *Flag* power), and both
+drop to about 0 with the flag fixed. Fix the flag first, then re-run the survey
+with the trained bot under the fixed-flag rules (800 games per card would
+separate the middle, which is all within ±10 points at 200).
 
 **Side effects of fixing the flag** (`--fixed-flag`, the same 600 deals,
 `results/fixed-flag/`): the flag-moving cards were partly a comeback
