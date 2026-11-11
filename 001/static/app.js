@@ -951,6 +951,10 @@ function animateUnits(p, g, before, after, lines) {
     layer.insertAdjacentHTML('beforeend', old.html);
     const el = layer.lastElementChild;
     el.removeAttribute('data-unit');
+    // A dead unit is no longer ready, selected or on offer (a unit that was
+    // ready can die by its own action, eg Possess).
+    el.querySelector('.ready')?.remove();
+    el.classList.remove('selected', 'choice', 'target');
     el.classList.add('dying');
     const at = `translate(${old.x}px, ${old.y}px)`;
     el.animate([

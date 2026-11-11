@@ -205,7 +205,9 @@ Tests for most of these are in `src/rules/tests.rs`.
   then it dies. Since its powers are gone first, *Phoenix* can't save it, but *Pacifist* can
   (it goes home powerless).
 - *Possess*: the user's powers are added to the target one at a time, and the player picks
-  replacements if it fills up. Then the user dies (by a power).
+  replacements if it fills up. Then the user dies (by a power). The target keeps its owner:
+  possessing the flag leaves it neutral, so either player can then activate its active
+  powers (decided in play: the card only moves powers).
 - *Remote*: only changes where targets are measured from. The playtesting notes suggest
   "pick targets as if". It works from the space of any friendly unit on top of a stack, using
   the user's facing. Distances and directions for the effect itself (pushing away, jumping

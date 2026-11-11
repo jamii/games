@@ -1481,3 +1481,35 @@ fn a_gripped_unit_cant_push_even_the_unit_gripping_it() {
     activate(&mut g, a, E, 0).unwrap();
     assert_eq!(g.unit(a).cell, c(-3, 2));
 }
+
+/// Jamie's report: possessing the flag with Possess + Stalker. The flag takes
+/// the powers and stays neutral (Possess never changes owner), so either
+/// player can then use its active powers.
+#[test]
+fn possess_the_flag_with_stalker() {
+    let mut g = game();
+    let a = put(&mut g, Some(0), (-5, 2), E, &["Possess", "Stalker"]);
+    let e = put(&mut g, Some(1), (5, 4), W, &[]);
+    let f = flag(&g);
+    let mut both = vec![f, e];
+    both.sort();
+    assert_eq!(targets(&g, a), both, "units with no neighbours");
+    activate(&mut g, a, E, 0).unwrap();
+    assert!(prompt(&g).text.contains("Possess which unit?"));
+    choose_unit(&mut g, f);
+    assert!(!g.alive(a));
+    assert_eq!(flag(&g), f);
+    assert_eq!(g.unit(f).owner, None, "the flag stays neutral");
+    assert_eq!(names(&g, f), vec!["Flag", "Possess", "Stalker"]);
+    let usable = |g: &Game, seat: Seat| {
+        g.legal_actions(seat)
+            .iter()
+            .any(|a| matches!(a, Action::Activate { unit, power: Some(_), .. } if *unit == f))
+    };
+    assert!(usable(&g, 0));
+    end_turn(&mut g);
+    while matches!(g.phase, Phase::Draw { .. }) {
+        g.apply(1, &Action::TakeDeck).unwrap();
+    }
+    assert!(usable(&g, 1), "the other player can use the flag's Possess too");
+}
