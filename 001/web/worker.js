@@ -24,8 +24,13 @@ function call(name, ...args) {
   return decoder.decode(new Uint8Array(wasm.memory.buffer, wasm.out_ptr(), len));
 }
 
-function deliver(answer) {
-  for (const text of JSON.parse(answer)) postMessage({ type: 'server', text });
+// `quiet` drops the session's "noted" message: the page says so itself, once
+// the note is saved.
+function deliver(answer, quiet = false) {
+  for (const text of JSON.parse(answer)) {
+    if (quiet && JSON.parse(text).type === 'notice') continue;
+    postMessage({ type: 'server', text });
+  }
 }
 
 function failed(error) {
@@ -65,7 +70,11 @@ function receive(text) {
     return;
   }
   try {
-    deliver(call('handle', text));
+    const out = call('handle', text);
+    // Notes (the Note button) are saved by the page, in the artifact's database.
+    const notes = JSON.parse(call('notes'));
+    deliver(out, notes.length > 0);
+    for (const note of notes) postMessage({ type: 'save-note', note });
     // One player: sit them down and give the other seat to the bot.
     if (!seated && JSON.parse(text).type === 'hello') {
       seated = true;

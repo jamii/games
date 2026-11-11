@@ -16,9 +16,24 @@ fn main() {
     let path = std::env::args().nth(1).expect("usage: replay FILE");
     let dump: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-    let options: Options = serde_json::from_value(dump["options"].clone()).unwrap();
-    let seed = dump["seed"].as_u64().unwrap();
-    let actions: Vec<(usize, Action)> = serde_json::from_value(dump["actions"].clone()).unwrap();
+    // Seeds may be written as text (notes from the single-player page).
+    let number = |v: &serde_json::Value| v.as_u64().or_else(|| v.as_str().and_then(|s| s.parse().ok()));
+    let mut options = dump["options"].clone();
+    options["seed"] = number(&options["seed"]).into();
+    let options: Options = serde_json::from_value(options).unwrap();
+    let seed = number(&dump["seed"]).expect("seed");
+    // [seat, action] pairs, or {seat, action} objects (notes saved by the
+    // single-player page).
+    let actions: Vec<(usize, Action)> = dump["actions"]
+        .as_array()
+        .expect("actions")
+        .iter()
+        .map(|a| match a {
+            serde_json::Value::Object(o) => serde_json::from_value(serde_json::json!([o["seat"], o["action"]])),
+            pair => serde_json::from_value(pair.clone()),
+        })
+        .collect::<Result<_, _>>()
+        .unwrap();
     let (mut game, _) = Game::new(Options {
         seed: Some(seed),
         ..options

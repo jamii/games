@@ -75,6 +75,14 @@ After changing the rules, the cards or the bot, rebuild and republish `web/dist/
 card set also needs a newly trained network). `web/worker.js` sets the bot's search and the
 pause before each of its actions.
 
+**Note** works there too, without a server: the note (with the game's options and moves,
+and what the screen showed) is saved in the artifact's own database, in a `notes`
+collection that only the artifact's owner and editors can read or write. Claude reads it
+with its artifact data tool; a note saved to a file replays with
+`cargo run --release --example replay -- note.json` like a server note. (Seeds are stored
+as text there, since JavaScript numbers would round them.) Anywhere else, eg served by
+`python3 -m http.server`, there's no database and no Note button.
+
 The board diagram is read from `rules.md` and the cards from `powers.md` (both in this
 folder) at compile time, so after editing either one, rebuild to pick up the changes.
 

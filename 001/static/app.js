@@ -318,7 +318,7 @@ function renderTop() {
   }
   if (me() !== null) buttons += '<button class="wide-only" data-act="new-game">New game</button>';
   buttons += '<button class="wide-only" data-act="reference">Rules &amp; cards</button>';
-  if (!SINGLE) buttons += '<button class="wide-only" data-act="note" title="Note a bug (or anything) for later: it goes in the server log with this game">Note</button>';
+  if (notesHere()) buttons += `<button class="wide-only" data-act="note" title="Note a bug (or anything) for later: it's saved ${SINGLE ? 'with this page' : 'in the server log'} with this game">Note</button>`;
   buttons += `<button class="narrow-only" data-act="log" title="Show the log and chat">Log</button>`;
   buttons += `<button class="narrow-only" data-act="menu" title="Menu" aria-label="Menu">☰</button>`;
   $('topbar').innerHTML = `
@@ -1335,7 +1335,7 @@ function openNewGame() {
 function openMenu() {
   let h = '<h2>Menu</h2><div class="choice-list">';
   h += '<button data-modal="reference">Rules &amp; cards</button>';
-  if (!SINGLE) h += '<button data-modal="note">Note a bug…</button>';
+  if (notesHere()) h += '<button data-modal="note">Note a bug…</button>';
   if (me() !== null) h += '<button data-modal="new-game">New game</button>';
   if (me() !== null) h += '<button data-modal="leave">Leave your seat</button>';
   for (const seat of [0, 1]) {
@@ -1355,12 +1355,16 @@ function openMenu() {
   });
 }
 
-// A note for later (eg a bug), saved in the server's log with the game's moves
-// so far, so the position can be replayed, and what this screen was showing.
+// A note for later (eg a bug), saved with the game's moves so far, so the
+// position can be replayed, and what this screen was showing: in the server's
+// log, or on the single-player page in the page's own database.
+const notesHere = () => !SINGLE || !!window.NOTES_HERE;
 function openNote() {
   openModal(`<h2>Note for later</h2>
-    <p class="muted small">Saved in the server log with this game's moves so far (so the position can be replayed)
-    and what's selected here. The other player doesn't see it.</p>
+    <p class="muted small">${SINGLE
+      ? 'Saved with this page (only you and its editors can read notes)'
+      : 'Saved in the server log'} with this game's moves so far (so the position can be replayed)
+    and what's selected here. ${SINGLE ? '' : "The other player doesn't see it."}</p>
     <textarea id="note-text" rows="5" maxlength="4000" placeholder="What's wrong, or what should change?"></textarea>
     <div class="modal-actions"><button data-modal="close">Cancel</button><button class="primary" data-modal="save">Save note</button></div>`,
   { save: saveNote });

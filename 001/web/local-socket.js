@@ -25,8 +25,47 @@ window.SINGLE_PLAYER = true;
       stopped(data.message);
     } else if (data.type === 'note') {
       console.warn(data.message);
+    } else if (data.type === 'save-note') {
+      saveNote(data.note);
     }
   };
+
+  // Notes (the Note button) go in this page's database, where only its owner
+  // and editors can read them (and Claude, for them). Elsewhere (a plain web
+  // server, a viewer who can't edit) there's no Note button.
+  let notesDb = null;
+  (async () => {
+    if (!window.claude || typeof window.claude.use !== 'function') return;
+    try {
+      const db = await window.claude.use('db');
+      if (!db) return;
+      const user = await window.claude.use('user');
+      if (user && !(await user.canEdit())) return;
+      notesDb = db;
+      window.NOTES_HERE = true;
+      if (typeof render === 'function') render(); // shows the Note button
+    } catch (e) { /* no notes here */ }
+  })();
+
+  function tell(msg) {
+    if (socket && socket.onmessage) socket.onmessage({ data: JSON.stringify(msg) });
+  }
+
+  async function saveNote(note) {
+    if (!notesDb) {
+      tell({ type: 'error', message: "Notes can't be saved here." });
+      return;
+    }
+    // Stored as objects ({seat, action}): some stores refuse arrays in arrays.
+    const body = { ...note, actions: (note.actions || []).map(([seat, action]) => ({ seat, action })),
+      time: new Date().toISOString(), status: 'open' };
+    try {
+      await notesDb.collection('notes').add(body);
+      tell({ type: 'notice', message: 'Note saved with this page.' });
+    } catch (e) {
+      tell({ type: 'error', message: `The note wasn't saved: ${(e && (e.message || e.code)) || e}` });
+    }
+  }
   worker.onerror = e => stopped(e.message || 'the game engine could not start');
 
   class LocalSocket {

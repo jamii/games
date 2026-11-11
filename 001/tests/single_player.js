@@ -7,7 +7,8 @@
 //   node tests/single_player.js
 //
 // Then, on a phone: everything fits on the screen without scrolling, and the
-// bot's moves are animated.
+// bot's moves are animated. And with a stand-in for the artifact's database,
+// the Note button saves a note there that replays the game.
 //
 // Options (environment variables): URL (default http://localhost:3125/), SEED.
 const { chromium, devices } = require('playwright');
@@ -94,6 +95,7 @@ function rand() {
   await page.waitForFunction(() => view.game.phase.kind === 'draft' && view.game.hand_counts[1] > 0, null, { timeout: 30000 });
 
   await phoneCheck(browser, errors);
+  await notesCheck(browser, errors);
 
   if (botTurns < 2) throw new Error('the bot did not take its turns');
   if (final.phase.kind !== 'over') throw new Error('the game did not finish');
@@ -144,4 +146,38 @@ async function phoneCheck(browser, errors) {
   if (layout.board < 0.4) throw new Error('the board is too small on a phone');
   if (!layout.hand || !layout.me || !layout.opp) throw new Error('the hand or a player bar is off the phone screen');
   if (layout.flights === 0) throw new Error('no cards flew');
+}
+
+// The artifact viewer gives the page a database (window.claude.use('db')); a
+// stand-in records what the page saves.
+async function notesCheck(browser, errors) {
+  const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
+  page.on('pageerror', e => errors.push(`notes: ${e.message}`));
+  await page.addInitScript(() => {
+    window.__notes = [];
+    const db = { collection: name => ({ add: async body => { window.__notes.push({ name, body: JSON.parse(JSON.stringify(body)) }); return {}; } }) };
+    const user = { canEdit: async () => true };
+    window.claude = { use: async name => (name === 'db' ? db : name === 'user' ? user : null) };
+  });
+  await page.goto(URL);
+  await page.waitForFunction(() => typeof view !== 'undefined' && view && view.you === 0 && view.seats[1].bot, null, { timeout: 30000 });
+  // Play into the game a little, then note.
+  for (let i = 0; i < 60; i++) {
+    const s = await page.evaluate(() => ({ cur: view.game.current, turn: view.game.turn, legal: view.game.legal || [] }));
+    if (s.turn >= 3 && s.cur === 0) break;
+    if (s.cur === 0 && s.legal.length) await page.evaluate(() => { const l = view.game.legal; send({ type: 'action', action: l.find(a => a.type === 'take_faceup') || l.find(a => a.type === 'end_turn') || l[0] }); });
+    await page.waitForTimeout(250);
+  }
+  await page.click('#topbar button[data-act=note]');
+  await page.fill('#note-text', 'Test note from the single-player page.');
+  await page.click('.modal-box button[data-modal=save]');
+  await page.waitForFunction(() => window.__notes.length > 0 && !document.getElementById('toast').hidden, null, { timeout: 10000 });
+  const toast = await page.textContent('#toast span');
+  const saved = await page.evaluate(() => window.__notes[0]);
+  const fs = require('fs');
+  fs.writeFileSync(path.join(__dirname, 'screenshots', 'single-player-note.json'), JSON.stringify(saved.body));
+  console.log(`note: saved to "${saved.name}" with ${saved.body.actions.length} actions, turn ${saved.body.turn}; toast "${toast}"`);
+  if (saved.name !== 'notes' || saved.body.text !== 'Test note from the single-player page.') throw new Error('the note was not saved');
+  if (!saved.body.actions.length || saved.body.actions[0].seat === undefined || !saved.body.options) throw new Error('the note has no replay');
+  if (!/saved/.test(toast)) throw new Error(`unexpected toast: ${toast}`);
 }

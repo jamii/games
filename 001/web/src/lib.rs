@@ -22,6 +22,9 @@ struct State {
     job: Option<BotJob>,
     answer: Option<Action>,
     out: Vec<u8>,
+    /// Notes the player wrote (journal records of kind "comment"), for the
+    /// page to save; the rest of the journal is dropped.
+    notes: Vec<serde_json::Value>,
 }
 
 thread_local! {
@@ -41,6 +44,14 @@ fn answer(text: String) -> usize {
         s.out = text.into_bytes();
         s.out.len()
     })
+}
+
+/// Keeps the notes from the session's journal, and drops the rest.
+fn keep_notes(s: &mut State) {
+    if let Some(session) = &mut s.session {
+        let records = session.take_journal();
+        s.notes.extend(records.into_iter().filter(|r| r["kind"] == "comment"));
+    }
 }
 
 /// The messages for the page, as a JSON array of message texts.
@@ -101,6 +112,7 @@ pub extern "C" fn start(seed_low: u32, seed_high: u32, simulations: u32, samples
             delay: std::time::Duration::ZERO,
         };
         let mut session = Session::new(bot, (seed_high as u64) << 32 | seed_low as u64);
+        session.keep_journal();
         let (conn, out) = session.connect();
         s.session = Some(session);
         s.conn = conn;
@@ -115,12 +127,36 @@ pub extern "C" fn handle(ptr: *mut u8, len: usize) -> usize {
     let text = input(ptr, len);
     let out = with(|s| {
         let conn = s.conn;
-        s.session
+        let out = s
+            .session
             .as_mut()
             .map(|session| session.handle(conn, &text))
-            .unwrap_or_default()
+            .unwrap_or_default();
+        keep_notes(s);
+        out
     });
     messages(out)
+}
+
+/// The notes written since the last call (see the session's journal: each
+/// has the text, what the screen showed, and the game's options and
+/// actions), as a JSON array.
+/// Seeds (64-bit) are written as text: JavaScript numbers would round them,
+/// and a replay with a rounded seed deals a different game.
+#[unsafe(no_mangle)]
+pub extern "C" fn notes() -> usize {
+    let mut notes = with(|s| std::mem::take(&mut s.notes));
+    for note in &mut notes {
+        for field in ["seed", "game"] {
+            if let Some(n) = note[field].as_u64() {
+                note[field] = n.to_string().into();
+            }
+        }
+        if let Some(n) = note["options"]["seed"].as_u64() {
+            note["options"]["seed"] = n.to_string().into();
+        }
+    }
+    answer(serde_json::to_string(&notes).expect("notes serialize"))
 }
 
 /// If it's the bot's move, sets up its thinking and answers the messages that
@@ -167,10 +203,13 @@ pub extern "C" fn bot_finish() -> usize {
         let (Some(job), Some(action)) = (s.job.take(), s.answer.take()) else {
             return Vec::new();
         };
-        s.session
+        let out = s
+            .session
             .as_mut()
             .map(|session| session.bot_done(&job, &action))
-            .unwrap_or_default()
+            .unwrap_or_default();
+        keep_notes(s);
+        out
     });
     messages(out)
 }

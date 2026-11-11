@@ -15,7 +15,8 @@
 
 ## Bug notes from play
 - The server logs every action for 7 days in `logs/journal-YYYY-MM-DD.jsonl`; the **Note** button adds the player's note with the game's actions and what their screen showed.
-- To work through them: `python3 tools/notes.py` lists the notes; `python3 tools/notes.py --save N note.json` and `cargo run --release --example replay -- note.json` rebuild the exact position. Fix each, add a regression test, and say which notes were fixed.
+- Notes from the 001 Solo artifact are in its database, collection `notes` (one document each, `status: "open"` until fixed): read them with the ArtifactData tool (`list`, collection `notes`), save one's body to a file and replay it the same way.
+- To work through them: `python3 tools/notes.py` lists the server's notes; `python3 tools/notes.py --save N note.json` and `cargo run --release --example replay -- note.json` rebuild the exact position. Fix each, add a regression test, mark artifact notes `status: "fixed"`, and say which notes were fixed.
 
 ## Tests
 - `cargo test --release` (rules, session, journal).
