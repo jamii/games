@@ -253,7 +253,7 @@ players may find it slightly favours the second player.
 | Catapult | +4.5 ± 7.4 | +1.5 ± 8.3 |  |  | -5 | +0.42 |
 | Stalker | +4.0 ± 7.0 | +1.5 ± 8.5 |  |  | +4 | -0.28 |
 | Friendly | +3.6 ± 6.2 |  |  |  | +12 | +0.04 |
-| Lifeguard | +3.6 ± 6.0 |  |  |  | +12 | +0.11 |
+| Lifeguard | +3.6 ± 6.0 | -3.0 ± 8.1 |  |  | +12 | +0.11 |
 | Circle | +3.5 ± 7.9 |  |  |  | -7 | +0.06 |
 | Rush | +3.5 ± 7.3 |  |  |  | -12 | -0.13 |
 | Possess | +3.1 ± 7.6 |  |  |  | -8 | -0.20 |
