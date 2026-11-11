@@ -3,7 +3,12 @@
 //! whether each option can be applied.
 //!
 //!   cargo run --release --example replay -- bug-seed-N.json
+//!
+//! Also replays the game a player's note was made in (a line of the server's
+//! journal, saved by `tools/notes.py --save N FILE`), and shows the position
+//! they were looking at.
 
+use game_001::bot::to_move;
 use game_001::data::data;
 use game_001::game::{Action, Game, Options};
 
@@ -19,7 +24,12 @@ fn main() {
         ..options
     })
     .unwrap();
-    let (last, rest) = actions.split_last().unwrap();
+    // A note: replay everything, to the position the player saw.
+    let note = dump["kind"] == "comment";
+    let (last, rest) = match actions.split_last() {
+        Some((last, rest)) if !note => (Some(last), rest),
+        _ => (None, &actions[..]),
+    };
     for (seat, action) in rest {
         let log = game.apply(*seat, action).unwrap();
         for line in log {
@@ -39,11 +49,19 @@ fn main() {
             u.id, u.label, u.owner, u.cell.x, u.cell.y, u.facing, u.z, powers
         );
     }
+    let names = |cards: &[usize]| -> Vec<&str> { cards.iter().map(|&c| d.powers[c].name.as_str()).collect() };
+    println!("\nhands: {:?} / {:?}", names(&game.hands[0]), names(&game.hands[1]));
+    println!("faceup: {:?}", names(&game.faceup));
+    println!(
+        "turn {} {:?}, {} to move, scores {:?}",
+        game.turn, game.phase, to_move(&game), game.scores
+    );
+    let seat = last.map_or_else(|| to_move(&game), |l| l.0);
     if let Some(p) = &game.pending {
         println!("\npending {:?}, answers {:?}", p.action(), p.answers());
         println!("prompt: {}", p.prompt.text);
         for (i, o) in p.prompt.options.iter().enumerate() {
-            let ok = game.clone().apply(last.0, &Action::Choose { index: i });
+            let ok = game.clone().apply(seat, &Action::Choose { index: i });
             println!(
                 "  {i}: {} {:?} {:?} {:?} -> {:?}",
                 o.label,
@@ -54,10 +72,16 @@ fn main() {
             );
         }
     }
-    println!(
-        "\nlast action {:?} by {}: {:?}",
-        last.1,
-        last.0,
-        game.clone().apply(last.0, &last.1).map_err(|e| e.message)
-    );
+    if let Some(last) = last {
+        println!(
+            "\nlast action {:?} by {}: {:?}",
+            last.1,
+            last.0,
+            game.clone().apply(last.0, &last.1).map_err(|e| e.message)
+        );
+    }
+    if note {
+        println!("\nnote by seat {}: {}", dump["seat"], dump["text"]);
+        println!("what the screen showed: {}", dump["context"]);
+    }
 }

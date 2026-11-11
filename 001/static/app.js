@@ -130,6 +130,8 @@ function connect() {
       else logSeen = view.log_total;
     } else if (msg.type === 'error') {
       showToast(msg.message, msg.retry);
+    } else if (msg.type === 'notice') {
+      showToast(msg.message);
     }
   };
   ws.onclose = () => {
@@ -316,6 +318,7 @@ function renderTop() {
   }
   if (me() !== null) buttons += '<button class="wide-only" data-act="new-game">New game</button>';
   buttons += '<button class="wide-only" data-act="reference">Rules &amp; cards</button>';
+  if (!SINGLE) buttons += '<button class="wide-only" data-act="note" title="Note a bug (or anything) for later: it goes in the server log with this game">Note</button>';
   buttons += `<button class="narrow-only" data-act="log" title="Show the log and chat">Log</button>`;
   buttons += `<button class="narrow-only" data-act="menu" title="Menu" aria-label="Menu">☰</button>`;
   $('topbar').innerHTML = `
@@ -1332,6 +1335,7 @@ function openNewGame() {
 function openMenu() {
   let h = '<h2>Menu</h2><div class="choice-list">';
   h += '<button data-modal="reference">Rules &amp; cards</button>';
+  if (!SINGLE) h += '<button data-modal="note">Note a bug…</button>';
   if (me() !== null) h += '<button data-modal="new-game">New game</button>';
   if (me() !== null) h += '<button data-modal="leave">Leave your seat</button>';
   for (const seat of [0, 1]) {
@@ -1343,11 +1347,41 @@ function openMenu() {
   h += '</div><div class="modal-actions"><button data-modal="close">Close</button></div>';
   openModal(h, {
     reference: () => openReference(),
+    note: () => openNote(),
     'new-game': () => openNewGame(),
     leave: () => { closeModal(); send({ type: 'leave' }); },
     'remove-bot': d => { closeModal(); send({ type: 'remove_bot', seat: +d.seat }); },
     'add-bot': d => { closeModal(); send({ type: 'add_bot', seat: +d.seat }); },
   });
+}
+
+// A note for later (eg a bug), saved in the server's log with the game's moves
+// so far, so the position can be replayed, and what this screen was showing.
+function openNote() {
+  openModal(`<h2>Note for later</h2>
+    <p class="muted small">Saved in the server log with this game's moves so far (so the position can be replayed)
+    and what's selected here. The other player doesn't see it.</p>
+    <textarea id="note-text" rows="5" maxlength="4000" placeholder="What's wrong, or what should change?"></textarea>
+    <div class="modal-actions"><button data-modal="close">Cancel</button><button class="primary" data-modal="save">Save note</button></div>`,
+  { save: saveNote });
+  setTimeout(() => $('note-text') && $('note-text').focus(), 0);
+}
+
+function saveNote() {
+  const text = $('note-text').value.trim();
+  if (!text) { $('note-text').focus(); return; }
+  const u = selectedUnit();
+  const context = {
+    screen: `${window.innerWidth}x${window.innerHeight}`,
+    agent: navigator.userAgent,
+    showing: phaseText().text,
+    selected: u ? { unit: u.id, name: unitName(u), cell: u.cell, facing: ui.facing ?? u.facing }
+      : ui.sel && ui.sel.cell ? { cell: ui.sel.cell } : null,
+    picked: ui.mode,
+    peek: ui.peek !== null ? P(ui.peek).name : null,
+  };
+  closeModal();
+  send({ type: 'comment', text, context });
 }
 
 function openReference(tab) {
@@ -1492,6 +1526,7 @@ function handleAct(a, d) {
     case 'remove-bot': send({ type: 'remove_bot', seat: +d.seat }); break;
     case 'undo': send({ type: 'undo' }); break;
     case 'menu': openMenu(); break;
+    case 'note': openNote(); break;
     case 'log': ui.logOpen = !ui.logOpen; renderLayout(); if (ui.logOpen) $('log').scrollTop = $('log').scrollHeight; break;
     case 'deselect': select(null); break;
     case 'end-turn': openEndTurn(); break;
@@ -1582,6 +1617,7 @@ document.addEventListener('mouseover', e => {
 });
 
 document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.id === 'note-text') { saveNote(); return; }
   if (e.key !== 'Escape') return;
   if (ui.modal) closeModal();
   else if (ui.mode) { ui.mode = null; render(); }

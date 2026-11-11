@@ -35,6 +35,8 @@ function rand() {
   const help = await page.textContent('#inspector');
   if (!help.includes('against the bot')) throw new Error('the help text is the two-player one');
   if (await page.isVisible('button[data-act=toggle-mode]')) throw new Error('the rules switch is showing');
+  // No server, so no server log for notes.
+  if (await page.isVisible('button[data-act=note]')) throw new Error('the Note button is showing');
 
   // Undo: make an undoable move on my first main turn, undo it.
   let undone = false;

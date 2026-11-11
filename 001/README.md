@@ -21,6 +21,24 @@ and otherwise the hand-made search. Environment variables: `BOT_NET` (another ne
 `BOT_SEARCH` (search size, default `400x4`; bigger is stronger and slower) and
 `BOT_DELAY_MS` (pause before each of its actions, default 1000, so you can follow them).
 
+## Notes and the server log
+
+The server keeps a journal of every game action for 7 days: each player's and the bot's
+actions (refused ones too, with the reason), undos, new games and seat changes, one JSON
+object a line in `logs/journal-YYYY-MM-DD.jsonl` (UTC dates). `LOG_DIR` and `LOG_DAYS`
+change where and for how long (`LOG_DAYS=0` turns it off).
+
+**Note** (top right; in **☰** on a phone) saves a note in the journal: say what looks
+wrong, and the note keeps the game's options and every action so far, what your screen
+was showing (the phase, the selected unit, the card you'd picked, the screen size) and
+the last lines of the log. The other player doesn't see it. Later:
+
+```bash
+python3 tools/notes.py                     # list the notes, oldest first
+python3 tools/notes.py --save 3 note.json  # save note 3 ...
+cargo run --release --example replay -- note.json   # ... and replay to that position
+```
+
 ## The table
 
 The page fits one screen and never scrolls, laid out like a digital deck-building game:
@@ -151,7 +169,7 @@ browsers agree and hands stay hidden.
 - `tests/playthrough.js` uses manual rules, and includes a game where one player is on a
   phone.
 - `tests/bot_seat.js` plays a game against the server's bot (start the server with
-  `BOT_DELAY_MS=50 PORT=3124`).
+  `BOT_DELAY_MS=50 PORT=3124`), and leaves a note.
 - `tests/single_player.js` plays the single-player page (serve `web/dist` on port 3125),
   then checks on a phone that the page fits the screen and the bot's moves are animated.
 

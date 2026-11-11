@@ -22,3 +22,4 @@ __pycache__/
 /cards-net10/*.part
 /web/target
 /web/dist
+/logs

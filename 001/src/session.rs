@@ -23,6 +23,7 @@ const LOG_LIMIT: usize = 1000;
 const LOG_SENT: usize = 300;
 const UNDO_LIMIT: usize = 200;
 const CHAT_LIMIT: usize = 500;
+const COMMENT_LIMIT: usize = 4000;
 
 /// Messages to deliver: (connection, JSON text).
 pub type Outbox = Vec<(u64, String)>;
@@ -53,6 +54,13 @@ enum ClientMsg {
     },
     RemoveBot {
         seat: Seat,
+    },
+    /// A note for whoever looks after the game (eg a bug), kept in the journal
+    /// with what the browser was showing and everything needed to replay the game.
+    Comment {
+        text: String,
+        #[serde(default)]
+        context: Value,
     },
 }
 
@@ -137,8 +145,17 @@ pub struct Session {
     log: Vec<LogEntry>,
     /// How many log entries there have ever been, so a page can tell which are new.
     logged: u64,
-    /// Snapshots for undo, cleared whenever the turn passes or hidden cards are revealed.
-    history: Vec<(Game, String)>,
+    /// Snapshots for undo, cleared whenever the turn passes or hidden cards are
+    /// revealed, with how many of `actions` there were then.
+    history: Vec<(Game, String, usize)>,
+    /// The actions played in this game so far (undone ones removed), which
+    /// replay it exactly from its options.
+    actions: Vec<(Seat, Action)>,
+    /// How many actions there were when the current prompt's action began.
+    prompt_from: usize,
+    /// When on (the server turns it on), a record of every action, seat change
+    /// and comment, for the caller to store: see `take_journal`.
+    journal: Option<Vec<Value>>,
     /// The token of the browser in each seat.
     seats: [Option<String>; 2],
     /// Each connection and the token it said hello with.
@@ -170,6 +187,9 @@ impl Session {
             log: Vec::new(),
             logged: 0,
             history: Vec::new(),
+            actions: Vec::new(),
+            prompt_from: 0,
+            journal: None,
             seats: [None, None],
             conns: BTreeMap::new(),
             next_conn: 1,
@@ -193,6 +213,33 @@ impl Session {
         if self.log.len() > LOG_LIMIT {
             self.log.drain(..self.log.len() - LOG_LIMIT);
         }
+    }
+
+    /// Starts keeping a journal (see `take_journal`).
+    pub fn keep_journal(&mut self) {
+        self.journal.get_or_insert_with(Vec::new);
+    }
+
+    /// The journal records since the last call: one JSON object per action
+    /// (players' and the bot's, refused ones too), undo, new game, seat change
+    /// and comment. Each names the game by its seed; a comment also carries
+    /// the game's options and actions (the format `examples/replay.rs` reads).
+    pub fn take_journal(&mut self) -> Vec<Value> {
+        self.journal.as_mut().map(std::mem::take).unwrap_or_default()
+    }
+
+    fn record(&mut self, mut entry: Value) {
+        if let Some(journal) = &mut self.journal {
+            entry["game"] = json!(self.game.options.seed);
+            entry["turn"] = json!(self.game.turn);
+            journal.push(entry);
+        }
+    }
+
+    /// The log lines added since the log had `since` entries in all.
+    fn lines_since(&self, since: u64) -> Vec<String> {
+        let n = ((self.logged - since) as usize).min(self.log.len());
+        self.log[self.log.len() - n..].iter().map(|e| e.text.clone()).collect()
     }
 
     /// A new connection: returns its id, and the board and state to send it.
@@ -302,6 +349,7 @@ impl Session {
                     None,
                     vec![format!("A player took the {} seat.", SEAT_NAMES[seat])],
                 );
+                self.record(json!({ "kind": "seat", "event": "claim", "seat": seat }));
                 self.broadcast()
             }
 
@@ -314,6 +362,7 @@ impl Session {
                     None,
                     vec![format!("The {} player left their seat.", SEAT_NAMES[seat])],
                 );
+                self.record(json!({ "kind": "seat", "event": "leave", "seat": seat }));
                 self.broadcast()
             }
 
@@ -329,6 +378,12 @@ impl Session {
                         self.game = game;
                         self.version += 1;
                         self.history.clear();
+                        self.actions.clear();
+                        self.record(json!({
+                            "kind": "new_game",
+                            "seat": seat,
+                            "options": self.game.options,
+                        }));
                         self.push_log(
                             Some(seat),
                             vec![format!("{} started a new game.", SEAT_NAMES[seat])],
@@ -344,7 +399,7 @@ impl Session {
                 let Some(seat) = self.seat_of(id) else {
                     return self.error(id, "Take a seat to play.", None);
                 };
-                match self.apply_action(seat, &action) {
+                match self.apply_action(seat, &action, "player") {
                     Ok(()) => self.broadcast(),
                     Err(e) => {
                         let retry = e.forceable.then(|| {
@@ -368,15 +423,17 @@ impl Session {
                 if self.game.pending.is_some() {
                     return self.error(id, "Cancel the current action first.", None);
                 }
-                let Some((game, what)) = self.history.pop() else {
+                let Some((game, what, played)) = self.history.pop() else {
                     return self.error(id, "Nothing to undo.", None);
                 };
                 self.game = game;
                 self.version += 1;
+                self.actions.truncate(played);
                 self.push_log(
                     Some(seat),
                     vec![format!("{} undid: {what}", SEAT_NAMES[seat])],
                 );
+                self.record(json!({ "kind": "undo", "seat": seat, "undid": what }));
                 self.broadcast()
             }
 
@@ -418,6 +475,7 @@ impl Session {
                     lines.push("The bot only plays with automatic rules.".into());
                 }
                 self.push_log(None, lines);
+                self.record(json!({ "kind": "seat", "event": "add_bot", "seat": seat }));
                 self.broadcast()
             }
 
@@ -431,18 +489,66 @@ impl Session {
                     None,
                     vec![format!("The bot left the {} seat.", SEAT_NAMES[seat])],
                 );
+                self.record(json!({ "kind": "seat", "event": "remove_bot", "seat": seat }));
                 self.broadcast()
+            }
+
+            ClientMsg::Comment { text, context } => {
+                let text: String = text.trim().chars().take(COMMENT_LIMIT).collect();
+                if text.is_empty() {
+                    return Vec::new();
+                }
+                if self.journal.is_none() {
+                    return self.error(id, "This game doesn't keep a log for notes.", None);
+                }
+                let recent = self.log.len().saturating_sub(40);
+                let log: Vec<&str> = self.log[recent..].iter().map(|e| e.text.as_str()).collect();
+                let entry = json!({
+                    "kind": "comment",
+                    "seat": self.seat_of(id),
+                    "text": text,
+                    "context": context,
+                    "log": log,
+                    "options": self.game.options,
+                    "seed": self.game.options.seed,
+                    "actions": self.actions,
+                });
+                self.record(entry);
+                let notice = json!({ "type": "notice", "message": "Noted in the server log." });
+                vec![(id, notice.to_string())]
             }
         }
     }
 
-    /// Carries out a player's (or the bot's) action, keeping the undo history.
-    fn apply_action(&mut self, seat: Seat, action: &Action) -> Result<(), ActionError> {
+    /// Carries out a player's (or the bot's) action, keeping the undo history
+    /// and the journal.
+    fn apply_action(&mut self, seat: Seat, action: &Action, by: &str) -> Result<(), ActionError> {
+        let since = self.logged;
+        let result = self.apply_and_keep(seat, action);
+        if self.journal.is_some() {
+            let mut entry = json!({ "kind": "action", "seat": seat, "by": by, "action": action });
+            match &result {
+                Ok(()) => entry["log"] = json!(self.lines_since(since)),
+                Err(e) => entry["error"] = json!(e.message),
+            }
+            self.record(entry);
+        }
+        result
+    }
+
+    fn apply_and_keep(&mut self, seat: Seat, action: &Action) -> Result<(), ActionError> {
         // While a prompt is waiting, the game is still the state before
         // the action, plus the prompt.
         let mut before = self.game.clone();
         before.pending = None;
+        // Undo goes back to before the action that started a prompt.
+        let prompted = self.game.pending.is_some();
+        let played = if prompted { self.prompt_from } else { self.actions.len() };
         let lines = self.game.apply(seat, action)?;
+        self.actions.push((seat, action.clone()));
+        if !prompted && self.game.pending.is_some() {
+            self.prompt_from = played;
+        }
         self.version += 1;
         let revealed = self.game.draws != before.draws;
         let turn_over = before.turn != self.game.turn || before.current != self.game.current;
@@ -453,7 +559,7 @@ impl Session {
             && !lines.is_empty()
         {
             let what = lines.first().cloned().unwrap_or_default();
-            self.history.push((before, what));
+            self.history.push((before, what, played));
             if self.history.len() > UNDO_LIMIT {
                 self.history.remove(0);
             }
@@ -488,7 +594,7 @@ impl Session {
         // Shouldn't fail: the bot only picks legal actions.
         if self.version == job.version
             && self.bots[job.seat]
-            && let Err(e) = self.apply_action(job.seat, action)
+            && let Err(e) = self.apply_action(job.seat, action, "bot")
         {
             self.push_log(None, vec![format!("The bot got stuck: {}", e.message)]);
             self.bots[job.seat] = false;
@@ -578,6 +684,87 @@ mod tests {
             );
         }
         assert!(s.game.turn > 3, "the game moved on");
+    }
+
+    #[test]
+    fn a_comment_carries_what_replays_the_game_exactly() {
+        let bot = BotConfig {
+            simulations: 8,
+            samples: 1,
+            ..BotConfig::default()
+        };
+        let mut s = Session::new(bot, 9);
+        s.keep_journal();
+        let (me, _) = s.connect();
+        s.handle(me, r#"{"type":"hello","token":"t"}"#);
+        s.handle(me, r#"{"type":"claim","seat":0}"#);
+        s.handle(me, r#"{"type":"add_bot","seat":1}"#);
+        let mut rng = crate::bot::Rng::new(4);
+        let mut undid = 0;
+        for step in 0..600 {
+            if matches!(s.game.phase, Phase::Over { .. }) || s.game.turn > 8 {
+                break;
+            }
+            if let Some((job, _)) = s.bot_due() {
+                let action = job.think();
+                s.bot_done(&job, &action);
+                continue;
+            }
+            let legal = s.game.legal_actions(0);
+            let end = legal.iter().find(|a| matches!(a, Action::EndTurn { .. }));
+            let action = match end {
+                Some(end) if rng.below(4) == 0 => end.clone(),
+                _ => legal[rng.below(legal.len())].clone(),
+            };
+            s.handle(me, &json!({ "type": "action", "action": action }).to_string());
+            // Undo now and then (it has to drop undone actions from the replay).
+            if !s.history.is_empty() && rng.below(3) == 0 {
+                let out = s.handle(me, r#"{"type":"undo"}"#);
+                assert_eq!(messages(&out, me)[0]["type"], "state");
+                undid += 1;
+            }
+        }
+        assert!(undid > 0, "undo was tried");
+        // A refused action is journaled too.
+        let out = s.handle(me, r#"{"type":"action","action":{"type":"spawn","cell":{"x":99,"y":99}}}"#);
+        assert_eq!(messages(&out, me)[0]["type"], "error");
+        let out = s.handle(me, r#"{"type":"comment","text":" that looks wrong ","context":{"screen":"393x727"}}"#);
+        assert_eq!(messages(&out, me)[0]["type"], "notice");
+
+        let journal = s.take_journal();
+        assert!(s.take_journal().is_empty(), "taken once");
+        let kinds = |k: &str| journal.iter().filter(|e| e["kind"] == k).count();
+        assert!(kinds("action") > 10 && kinds("undo") == undid && kinds("seat") == 2);
+        assert!(journal.iter().any(|e| e["by"] == "bot"));
+        assert!(journal.iter().any(|e| e["kind"] == "action" && e["error"].is_string()));
+        let comment = journal.last().unwrap();
+        assert_eq!(comment["kind"], "comment");
+        assert_eq!(comment["text"], "that looks wrong");
+        assert_eq!(comment["context"]["screen"], "393x727");
+        assert_eq!(comment["seat"], 0);
+        assert_eq!(comment["game"], comment["seed"]);
+
+        // Replaying the comment's actions from its options gives the same game.
+        let options: Options = serde_json::from_value(comment["options"].clone()).unwrap();
+        let actions: Vec<(Seat, Action)> = serde_json::from_value(comment["actions"].clone()).unwrap();
+        let (mut game, _) = Game::new(options).unwrap();
+        for (seat, action) in &actions {
+            game.apply(*seat, action).unwrap();
+        }
+        for seat in [Some(0), Some(1), None] {
+            assert_eq!(game.view(seat), s.game.view(seat));
+        }
+    }
+
+    #[test]
+    fn without_a_journal_nothing_is_kept() {
+        let mut s = Session::new(BotConfig::default(), 2);
+        let (me, _) = s.connect();
+        s.handle(me, r#"{"type":"hello","token":"t"}"#);
+        s.handle(me, r#"{"type":"claim","seat":0}"#);
+        let out = s.handle(me, r#"{"type":"comment","text":"hi"}"#);
+        assert_eq!(messages(&out, me)[0]["type"], "error");
+        assert!(s.take_journal().is_empty());
     }
 
     #[test]

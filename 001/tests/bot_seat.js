@@ -6,6 +6,8 @@
 //   BOT_DELAY_MS=50 PORT=3124 cargo run --release &
 //   node tests/bot_seat.js
 //
+// Midway it leaves a note with the Note button, and checks the server saved it.
+//
 // Options (environment variables): URL (default http://localhost:3124/), SEED.
 const { chromium } = require('playwright');
 const path = require('path');
@@ -46,7 +48,7 @@ function rand() {
   await page.click('button[data-act=add-bot][data-seat="1"]');
   await page.waitForFunction(() => view.seats[1].bot);
 
-  let moves = 0, botTurns = 0, lastTurn = -1, prompts = 0;
+  let moves = 0, botTurns = 0, lastTurn = -1, prompts = 0, noted = false;
   const started = Date.now();
   while (true) {
     const state = await page.evaluate(() => ({
@@ -54,6 +56,15 @@ function rand() {
       legal: view.game.legal || [], prompt: !!view.game.prompt, thinking: view.seats[1].thinking,
     }));
     if (state.phase === 'over' || state.turn > 60) break;
+    // Midway, leave a note: the server confirms it's in its log.
+    if (!noted && state.turn >= 4 && state.current === 0 && !state.thinking) {
+      await page.click('#topbar button[data-act=note]');
+      await page.fill('#note-text', 'Test note: this position looks odd.');
+      await page.click('.modal-box button[data-modal=save]');
+      await page.waitForFunction(() => !document.getElementById('toast').hidden
+        && /Noted/.test(document.getElementById('toast').textContent), null, { timeout: 5000 });
+      noted = true;
+    }
     if (Date.now() - started > 240000) throw new Error('game took too long');
     if (state.current === 1 && state.turn !== lastTurn) { botTurns++; lastTurn = state.turn; }
     if (state.legal.length > 0 && !state.thinking) {
@@ -75,6 +86,7 @@ function rand() {
   await page.screenshot({ path: path.join(__dirname, 'screenshots', 'bot-game.png') });
   console.log(`game ${final.phase.kind}: scores ${final.scores}, my moves ${moves}, bot turns ${botTurns}, my prompts ${prompts}`);
   if (botTurns < 2) throw new Error('the bot did not take its turns');
+  if (!noted) throw new Error('never got to leave a note');
   if (errors.length) throw new Error('page errors: ' + errors.join('; '));
   if (final.phase.kind !== 'over') throw new Error('the game did not finish');
   console.log('bot seat test passed');
