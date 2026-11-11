@@ -80,6 +80,11 @@ After changing the rules, the cards or the bot, rebuild and republish `web/dist/
 card set also needs a newly trained network). `web/worker.js` sets the bot's search and the
 pause before each of its actions.
 
+The game in progress is kept in the browser (`localStorage`, key `game-001-solo`: the
+game's options and moves) after every move, so a reload, including the one a republish
+causes, picks it up where it was. A finished game isn't kept. If a kept game no longer
+replays (a rules change made one of its moves illegal), the page starts a new game and says so.
+
 Notes work there too, without a server: whatever you type in the chat box goes in the log
 and is saved as a note (with the game's options and moves, and what the screen showed)
 in the artifact's own database, in a `notes` collection that only the artifact's owner and
@@ -188,7 +193,8 @@ browsers agree and hands stay hidden.
   from the server's journal, so start the server from this folder, or give the server and
   the test the same absolute `LOG_DIR`.
 - `tests/single_player.js` plays the single-player page (serve `web/dist` on port 3125),
-  then checks on a phone that the page fits the screen and the bot's moves are animated.
+  then checks on a phone that the page fits the screen and the bot's moves are animated,
+  and that a reload picks the game up again.
 
 ```bash
 PORT=3123 cargo run --release &

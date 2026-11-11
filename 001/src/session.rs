@@ -565,6 +565,60 @@ impl Session {
         Ok(())
     }
 
+    /// What it takes to pick this game up again (eg after the single-player
+    /// page reloads): its options and every action so far, in the format
+    /// `examples/replay.rs` reads. None once the game is over, so a reload
+    /// then starts a new one.
+    pub fn saved_game(&self) -> Option<Value> {
+        if matches!(self.game.phase, Phase::Over { .. }) {
+            return None;
+        }
+        Some(json!({ "options": self.game.options, "actions": self.actions }))
+    }
+
+    /// Picks up a game from `saved_game` by replaying its actions on a new
+    /// game with the same options, so the log and undo come back too. Seats
+    /// and bots stay as they are. If the save doesn't replay (it's damaged, or
+    /// the rules changed since), nothing changes and the answer says why.
+    pub fn resume(&mut self, saved: &Value) -> Result<Outbox, String> {
+        let options: Options = serde_json::from_value(saved["options"].clone())
+            .map_err(|e| format!("its options don't read: {e}"))?;
+        let actions: Vec<(Seat, Action)> = serde_json::from_value(saved["actions"].clone())
+            .map_err(|e| format!("its moves don't read: {e}"))?;
+        if options.seed.is_none() {
+            return Err("it has no seed".into());
+        }
+        // Players' own actions only ever come from seats 0 and 1, so the
+        // engine doesn't check other seats everywhere.
+        if actions.iter().any(|&(seat, _)| seat > 1) {
+            return Err("it has a move by a seat that doesn't exist".into());
+        }
+        // Check the whole replay first, so a bad save leaves this game alone.
+        let (mut check, _) = Game::new(options.clone())?;
+        for (i, (seat, action)) in actions.iter().enumerate() {
+            check
+                .apply(*seat, action)
+                .map_err(|e| format!("move {} no longer works: {}", i + 1, e.message))?;
+        }
+        let (game, lines) = Game::new(options)?;
+        self.game = game;
+        self.version += 1;
+        self.thinking = false;
+        self.history.clear();
+        self.actions.clear();
+        self.prompt_from = 0;
+        self.push_log(None, lines);
+        for (seat, action) in &actions {
+            self.apply_and_keep(*seat, action)
+                .map_err(|e| format!("the replay went wrong: {}", e.message))?;
+        }
+        self.push_log(
+            None,
+            vec!["Picked up the game where it left off.".to_string()],
+        );
+        Ok(self.broadcast())
+    }
+
     /// If it's a bot's move (and it isn't already thinking), the job to run,
     /// and the messages that show it thinking.
     pub fn bot_due(&mut self) -> Option<(BotJob, Outbox)> {
@@ -800,5 +854,105 @@ mod tests {
         let before = s.game.view(None);
         s.bot_done(&job, &action);
         assert_eq!(s.game.view(None), before, "the old answer wasn't played");
+    }
+    #[test]
+    fn a_saved_game_picks_up_where_it_left_off() {
+        let bot = || BotConfig {
+            simulations: 8,
+            samples: 1,
+            ..BotConfig::default()
+        };
+        let mut s = Session::new(bot(), 3);
+        let (me, _) = s.connect();
+        s.handle(me, r#"{"type":"hello","token":"t"}"#);
+        s.handle(me, r#"{"type":"claim","seat":0}"#);
+        s.handle(me, r#"{"type":"add_bot","seat":1}"#);
+        // Split in my hand, for a prompt.
+        let split = data()
+            .powers
+            .iter()
+            .position(|p| p.name == "Split")
+            .unwrap();
+        let options = json!({ "seed": 11, "first_player": 0, "given_first": [split] });
+        s.handle(
+            me,
+            &json!({ "type": "new_game", "options": options }).to_string(),
+        );
+        // Play until a prompt is waiting for me in the main phase, so the
+        // save has prompts and draws in it, and stops in the middle of one.
+        let mut rng = crate::bot::Rng::new(4);
+        let mut prompted = false;
+        for _ in 0..3000 {
+            if s.game.pending.as_ref().is_some_and(|p| p.seat == 0) && s.game.turn > 2 {
+                prompted = true;
+                break;
+            }
+            if matches!(s.game.phase, Phase::Over { .. }) {
+                break;
+            }
+            if let Some((job, _)) = s.bot_due() {
+                let action = job.think();
+                s.bot_done(&job, &action);
+                continue;
+            }
+            let legal = s.game.legal_actions(0);
+            // Later on, take an action that asks something, if there is one.
+            let asks = legal.iter().find(|a| {
+                let mut g = s.game.clone();
+                s.game.turn > 2 && g.apply(0, a).is_ok() && g.pending.is_some()
+            });
+            let action = asks.unwrap_or(&legal[rng.below(legal.len())]).clone();
+            s.handle(
+                me,
+                &json!({ "type": "action", "action": action }).to_string(),
+            );
+        }
+        assert!(prompted, "found a prompt to stop at");
+        let saved = s.saved_game().expect("the game isn't over");
+        // Through text, the way the page keeps it.
+        let saved: Value = serde_json::from_str(&saved.to_string()).unwrap();
+
+        // A reload: a new session with another game, then the kept one.
+        let mut t = Session::new(bot(), 77);
+        let (me, _) = t.connect();
+        t.handle(me, r#"{"type":"hello","token":"t"}"#);
+        t.handle(me, r#"{"type":"claim","seat":0}"#);
+        t.handle(me, r#"{"type":"add_bot","seat":1}"#);
+        let out = t.resume(&saved).unwrap();
+        let shown = |s: &Session| {
+            let mut v = s.game.view(Some(0));
+            v["legal"] = json!(s.game.legal_actions(0));
+            v
+        };
+        assert_eq!(shown(&t), shown(&s), "the same position, prompt and all");
+        assert_eq!(messages(&out, me)[0]["game"], s.game.view(Some(0)));
+        assert_eq!(t.actions, s.actions);
+        assert!(t.log.last().unwrap().text.contains("Picked up"));
+        assert_eq!(t.seats, s.seats, "seats stay as they were");
+        assert!(t.bots[1]);
+
+        // It plays on: answer the prompt in both, and they stay the same.
+        let answer =
+            json!({ "type": "action", "action": {"type": "choose", "index": 0} }).to_string();
+        s.handle(me, &answer);
+        t.handle(me, &answer);
+        assert_eq!(shown(&t), shown(&s));
+
+        // A save that doesn't replay changes nothing.
+        let before = shown(&t);
+        let mut bad = saved.clone();
+        bad["actions"] = json!([[1, {"type": "end_turn", "score": false}]]);
+        assert!(t.resume(&bad).is_err());
+        assert!(t.resume(&json!({"options": 3})).is_err());
+        let manual = json!({
+            "options": {"seed": 1, "automatic": false},
+            "actions": [[2, {"type": "take_deck"}]],
+        });
+        assert!(t.resume(&manual).is_err(), "no seat 2");
+        assert_eq!(shown(&t), before);
+
+        // A finished game isn't kept, so a reload starts a new one.
+        t.game.phase = Phase::Over { winner: 0 };
+        assert!(t.saved_game().is_none());
     }
 }

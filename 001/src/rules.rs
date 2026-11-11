@@ -1069,9 +1069,12 @@ impl Game {
                     return illegal("You can only spawn one unit per turn.");
                 }
                 self.spawned_this_turn = true;
+                let crowded = self.unit_count(seat) >= 5;
                 let id =
                     self.create_unit(Some(seat), cell, default_facing(seat), Vec::new(), ctx)?;
-                if self.alive(id) {
+                if crowded {
+                    ctx.log.insert(0, format!("{me} spawned a new unit."));
+                } else if self.alive(id) {
                     ctx.log
                         .insert(0, format!("{me} spawned unit {}.", self.unit(id).label));
                 }
@@ -1649,6 +1652,11 @@ impl Game {
         Ok(id)
     }
 
+    /// How many units `owner` has, buried ones included.
+    fn unit_count(&self, owner: Seat) -> usize {
+        self.units.iter().filter(|u| u.owner == Some(owner)).count()
+    }
+
     fn enforce_unit_cap(&mut self, owner: Seat, ctx: &mut Ctx) -> R<()> {
         let mine: Vec<u32> = self
             .units
@@ -1665,11 +1673,14 @@ impl Game {
             format!("{} has six units: which one dies?", SEAT_NAMES[owner]),
             options,
         )?;
-        self.kill_units(vec![mine[i]], None, false, ctx)?;
+        self.kill_units_because(vec![mine[i]], None, false, Some("six units"), ctx)?;
         for id in mine {
             if self.alive(id) && self.unit(id).label == "+" {
                 let label = self.free_label(owner).unwrap_or("+");
                 self.unit_mut(id).label = label;
+                if label != "+" {
+                    ctx.log(format!("The new unit is now {label}."));
+                }
             }
         }
         Ok(())
@@ -1682,6 +1693,19 @@ impl Game {
         ids: Vec<u32>,
         killer: Option<u32>,
         by_power: bool,
+        ctx: &mut Ctx,
+    ) -> R<()> {
+        self.kill_units_because(ids, killer, by_power, None, ctx)
+    }
+
+    /// `kill_units`, saying why in the log ("B was killed (six units).").
+    /// The front end looks for that line to show the reason on the board.
+    fn kill_units_because(
+        &mut self,
+        ids: Vec<u32>,
+        killer: Option<u32>,
+        by_power: bool,
+        why: Option<&str>,
         ctx: &mut Ctx,
     ) -> R<()> {
         let before = self.twitchy_snapshot();
@@ -1742,7 +1766,10 @@ impl Game {
                 self.kills_this_turn.push((victim, k));
             }
             self.units.retain(|x| x.id != id);
-            ctx.log(format!("{name} was killed."));
+            match why {
+                Some(why) => ctx.log(format!("{name} was killed ({why}).")),
+                None => ctx.log(format!("{name} was killed.")),
+            }
             for p in u.powers {
                 self.remove_from_board(p, u.owner, None, true, ctx)?;
             }
@@ -2552,8 +2579,15 @@ impl Game {
                     .map(|i| u.powers[i])
                     .collect();
                 self.unit_mut(user).powers = kept.into();
+                // With five units already, the six-unit kill follows: say
+                // that the split came first, before the new unit has a label.
+                let crowded = u.owner.is_some_and(|o| self.unit_count(o) >= 5);
+                let at = ctx.log.len();
                 let id = self.create_unit(u.owner, ahead, facing, given, ctx)?;
-                if self.alive(id) {
+                if crowded {
+                    ctx.log
+                        .insert(at, format!("{} split off a new unit.", cap(u.name())));
+                } else if self.alive(id) {
                     ctx.log(format!(
                         "{} split off {}.",
                         cap(u.name()),
@@ -2579,10 +2613,17 @@ impl Game {
                     let unit = self.unit_mut(t);
                     unit.owner = Some(owner);
                     unit.label = label;
-                    ctx.log(format!(
-                        "A neutral unit became {} unit {label}.",
-                        SEAT_NAMES[owner]
-                    ));
+                    if label == "+" {
+                        ctx.log(format!(
+                            "A neutral unit became a new {} unit.",
+                            SEAT_NAMES[owner]
+                        ));
+                    } else {
+                        ctx.log(format!(
+                            "A neutral unit became {} unit {label}.",
+                            SEAT_NAMES[owner]
+                        ));
+                    }
                     self.enforce_unit_cap(owner, ctx)?;
                     self.twitchy_check(before, ctx)?;
                 }

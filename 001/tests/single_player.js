@@ -9,7 +9,9 @@
 // Then, on a phone: everything fits on the screen without scrolling, and the
 // bot's moves are animated. And possessing the flag (Possess + Stalker): the
 // board keeps redrawing after a press released outside it, and picking a card
-// then clicking the full flag explains why instead of an empty dialog. And with a stand-in for the artifact's database,
+// then clicking the full flag explains why instead of an empty dialog. A reload
+// (as when the page is republished) picks the game up where it was, and a
+// damaged saved game starts a new one. And with a stand-in for the artifact's database,
 // a line typed in the chat goes in the log and is saved there as a note that
 // replays the game (without one, it only goes in the log).
 //
@@ -107,6 +109,7 @@ function rand() {
   await phoneCheck(browser, errors);
   await notesCheck(browser, errors);
   await possessFlagCheck(browser, errors);
+  await reloadCheck(browser, errors);
 
   if (botTurns < 2) throw new Error('the bot did not take its turns');
   if (final.phase.kind !== 'over') throw new Error('the game did not finish');
@@ -282,4 +285,60 @@ async function possessFlagCheck(browser, errors) {
     console.log(`possess: the bot changed the flag (${JSON.stringify(now.powers.map(p => p.power))}), so the full-flag click wasn't checked`);
   }
   console.log(`possess: the board followed the bot's turn after a press released outside it (${shown.phase})`);
+}
+
+// The page keeps the game in this browser: a reload (the page reloads when
+// it's republished) picks it up, and a damaged save starts a new game.
+async function reloadCheck(browser, errors) {
+  const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
+  page.on('pageerror', e => errors.push(`reload: ${e.message}`));
+  const ready = () => page.waitForFunction(() => typeof view !== 'undefined' && view && view.you === 0 && view.seats[1].bot, null, { timeout: 30000 });
+  await page.goto(URL);
+  await ready();
+  // Into the main phase of my third turn or later, so the bot isn't moving
+  // while the page reloads.
+  const deadline = Date.now() + 240000;
+  for (;;) {
+    if (Date.now() > deadline) throw new Error('reload check: never got to my third turn');
+    const s = await page.evaluate(() => ({ cur: view.game.current, turn: view.game.turn, phase: view.game.phase.kind,
+      legal: view.game.legal || [], thinking: view.seats[1].thinking, prompt: !!view.game.prompt }));
+    if (s.phase === 'over') throw new Error('reload check: the game ended before my third turn');
+    if (s.turn >= 3 && s.cur === 0 && s.phase === 'main' && !s.thinking && !s.prompt) break;
+    if (s.legal.length && !s.thinking) {
+      await page.evaluate(a => send({ type: 'action', action: a }),
+        s.legal.find(a => a.type === 'take_faceup') || s.legal.find(a => a.type === 'end_turn') || s.legal[0]);
+    }
+    await page.waitForTimeout(250);
+  }
+  const shown = () => page.evaluate(() => JSON.stringify({ seed: view.game.options.seed, turn: view.game.turn, current: view.game.current,
+    scores: view.game.scores, units: view.game.units, hand: view.game.hand, prompt: view.game.prompt }));
+  const before = await shown();
+  await page.reload();
+  await ready();
+  await page.waitForFunction(() => view.log.some(e => /Picked up the game/.test(e.text)), null, { timeout: 30000 });
+  const after = await shown();
+  console.log(`reload: picked up at turn ${JSON.parse(after).turn}, the same game: ${after === before}`);
+  if (after !== before) throw new Error(`a reload didn't pick up the same game:\n${before}\n${after}`);
+
+  // A save that doesn't replay: a new game, and the player is told.
+  await page.evaluate(() => localStorage.setItem('game-001-solo', JSON.stringify({ options: { seed: 5 }, actions: [[1, { type: 'end_turn', score: false }]] })));
+  await page.reload();
+  await ready();
+  await page.waitForFunction(() => !document.getElementById('toast').hidden, null, { timeout: 30000 });
+  const toast = await page.textContent('#toast');
+  const fresh = await page.evaluate(() => view.game.turn === 0 && !view.log.some(e => /Picked up/.test(e.text)));
+  console.log(`damaged save: "${toast.trim()}"`);
+  if (!/couldn't be picked up/.test(toast) || !fresh) throw new Error('a damaged save did not start a new game');
+
+  // If the engine stops, the kept game goes, so the reload the page asks for
+  // starts a new game instead of stopping in the same place again.
+  const kept = await page.evaluate(() => localStorage.getItem('game-001-solo'));
+  if (!kept) throw new Error('the new game is not kept');
+  await page.route(/game\.wasm$/, route => route.fulfill({ status: 200, contentType: 'application/wasm', body: 'not wasm' }));
+  await page.reload();
+  await page.waitForSelector('#engine-stopped:not([hidden])', { timeout: 30000 });
+  const left = await page.evaluate(() => localStorage.getItem('game-001-solo'));
+  console.log(`engine stopped: kept game ${left === null ? 'dropped' : 'still there'}`);
+  if (left !== null) throw new Error('the kept game survived the engine stopping');
+  await page.context().close();
 }

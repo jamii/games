@@ -7,6 +7,20 @@ window.SINGLE_PLAYER = true;
   let socket = null;
   const early = []; // messages that arrive before app.js is listening
 
+  // The game in progress is kept in this browser, so that a reload (the page
+  // reloads when it's republished) picks it up instead of starting over.
+  const KEPT_GAME = 'game-001-solo';
+  try {
+    const kept = localStorage.getItem(KEPT_GAME);
+    if (kept) worker.postMessage({ resume: kept });
+  } catch (e) { /* storage blocked: every visit starts a new game */ }
+  function keepGame(game) {
+    try {
+      if (game) localStorage.setItem(KEPT_GAME, game);
+      else localStorage.removeItem(KEPT_GAME);
+    } catch (e) { /* storage blocked or full */ }
+  }
+
   function stopped(message) {
     const text = `The game stopped: ${message}. Reload the page to start a new game.`;
     if (typeof window.showToast === 'function') window.showToast(text);
@@ -22,11 +36,16 @@ window.SINGLE_PLAYER = true;
       if (socket && socket.readyState === 1 && socket.onmessage) socket.onmessage({ data: data.text });
       else early.push(data.text);
     } else if (data.type === 'failed') {
+      // Drop the kept game: a crash would happen again in the same place
+      // after the reload the banner asks for.
+      keepGame(null);
       stopped(data.message);
     } else if (data.type === 'note') {
       console.warn(data.message);
     } else if (data.type === 'save-note') {
       saveNote(data.note);
+    } else if (data.type === 'keep-game') {
+      keepGame(data.game);
     }
   };
 

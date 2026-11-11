@@ -60,6 +60,9 @@ const cellInfo = c => cellIndex.get(key(c));
 const isFlagUnit = u => u.powers.some(p => p.power === init.flag);
 const ownerKey = u => (u.owner !== null ? SEAT_KEYS[u.owner] : isFlagUnit(u) ? 'flag' : 'neutral');
 const unitLabel = u => (u.owner !== null ? u.label : isFlagUnit(u) ? '⚑' : '');
+// How the log names a unit, in lower case ("a", "the new unit", "the flag").
+const logName = u => (u.owner !== null ? (u.label === '+' ? 'the new unit' : u.label)
+  : isFlagUnit(u) ? 'the flag' : 'a neutral unit').toLowerCase();
 const unitName = u => (u.owner !== null ? `Unit ${u.label}` : isFlagUnit(u) ? 'The flag' : 'Neutral unit');
 const inHomeOf = (u, seat) => { const c = cellInfo(u.cell); return !!c && c.kind === 'home' && c.seat === seat; };
 
@@ -1066,9 +1069,13 @@ function animateUnits(p, g, before, after, lines, end) {
   const oldUnits = new Map(p.units.map(u => [u.id, u]));
   // The power each unit just used, from the log ("A activated and used Walk: …").
   const used = new Map();
+  // Units the six-unit rule killed ("B was killed (six units).").
+  const crowdedOut = new Set();
   for (const e of lines) {
     const m = /^(.*?) activated(?:, turning [^,]*,)? and used (.+?)(?: from [^:]*)?: /.exec(e.text);
     if (m) used.set(m[1].toLowerCase(), m[2]);
+    const k = /^(.*?) was killed \(six units\)\.$/.exec(e.text);
+    if (k) crowdedOut.add(k[1].toLowerCase());
   }
   for (const [id, now] of after.units) {
     const old = before.units.get(id), u = unitById(id), was = oldUnits.get(id);
@@ -1098,7 +1105,7 @@ function animateUnits(p, g, before, after, lines, end) {
     }
     if (u.activations > was.activations) {
       ripple(now.x, now.y, ownerKey(u), 'act');
-      const power = used.get((u.owner !== null ? u.label : isFlagUnit(u) ? 'the flag' : 'a neutral unit').toLowerCase());
+      const power = used.get(logName(u));
       if (power) floater(power, now.el.querySelector('.body'), 'used');
     }
     // Powers, tokens and owners that changed.
@@ -1107,11 +1114,16 @@ function animateUnits(p, g, before, after, lines, end) {
     const notes = [...gained.map(n => [`+${n}`, 'gain']), ...lost.map(n => [`−${n}`, 'loss'])];
     if (u.tokens !== was.tokens) notes.push([`${u.tokens > was.tokens ? '+' : '−'}${plural(Math.abs(u.tokens - was.tokens), 'token')}`, u.tokens > was.tokens ? 'gain' : 'loss']);
     if (u.owner !== was.owner) notes.push([u.owner === null ? 'now neutral' : `now ${possessive(seatName(u.owner))}`, 'used']);
+    // A sixth unit takes the label of the unit that died for it.
+    if (was.label === '+' && u.label !== '+') notes.push([`now ${u.label}`, 'used']);
     notes.forEach(([text, cls], i) => floater(text, now.el.querySelector('.body'), cls, 160 + i * 260));
   }
-  // Units that are gone: a ghost flashes, swells and shrinks away.
+  // Units that are gone: a ghost flashes, swells and shrinks away. One the
+  // six-unit rule killed is jostled out of its space first, and says why.
   for (const [id, old] of before.units) {
     if (after.units.has(id)) continue;
+    const was = oldUnits.get(id);
+    const crowded = !!was && crowdedOut.has(logName(was));
     let layer = svg.querySelector('.ghosts');
     if (!layer) { layer = document.createElementNS('http://www.w3.org/2000/svg', 'g'); layer.setAttribute('class', 'ghosts'); svg.appendChild(layer); }
     layer.insertAdjacentHTML('beforeend', old.html);
@@ -1123,13 +1135,26 @@ function animateUnits(p, g, before, after, lines, end) {
     el.classList.remove('selected', 'choice', 'target');
     el.classList.add('dying');
     const at = `translate(${old.x}px, ${old.y}px)`;
+    const nudge = dx => `translate(${old.x + dx}px, ${old.y}px) scale(1.15)`;
+    // Killed by an end-of-turn power's moves: it waits for them.
     const delay = end ? end.lastMove : 0;
-    el.animate([
+    el.animate(crowded ? [
+      { transform: `${at} scale(1)`, opacity: 1 },
+      { transform: nudge(-0.12), opacity: 1, offset: 0.1 },
+      { transform: nudge(0.12), opacity: 1, offset: 0.2 },
+      { transform: nudge(-0.12), opacity: 1, offset: 0.3 },
+      { transform: nudge(0.12), opacity: 1, offset: 0.4 },
+      { transform: `${at} scale(1.3)`, opacity: 1, offset: 0.55 },
+      { transform: `${at} scale(.1)`, opacity: 0 },
+    ] : [
       { transform: `${at} scale(1)`, opacity: 1 },
       { transform: `${at} scale(1.3)`, opacity: 1, offset: 0.3 },
       { transform: `${at} scale(.1)`, opacity: 0 },
-    ], { duration: 700, delay, easing: 'ease-in', fill: 'both' }).onfinish = () => el.remove();
-    later(delay, () => ripple(old.x, old.y, 'death'));
+    ], { duration: crowded ? 1400 : 700, delay, easing: 'ease-in', fill: 'both' }).onfinish = () => el.remove();
+    later(delay, () => {
+      ripple(old.x, old.y, 'death');
+      if (crowded) floater('six units', old.rect, 'loss');
+    });
   }
 }
 
