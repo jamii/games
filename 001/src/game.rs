@@ -76,7 +76,7 @@ pub(crate) fn turn_text(from: usize, to: usize) -> Option<&'static str> {
 
 pub type Powers = smallvec::SmallVec<[PowerRef; 4]>;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PowerRef {
     pub power: usize,
     /// True for real cards, which go to the discard pile when removed. False
@@ -218,7 +218,7 @@ impl Default for Options {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Phase {
     /// Players take turns taking a card until each has `DRAFT_CARDS`.
@@ -421,6 +421,13 @@ pub struct Game {
     /// Cards each player's opponent has seen go into their hand (taken from the
     /// faceup row, or returned from the board). Only those still in the hand count.
     pub(crate) public_hand: [Vec<usize>; 2],
+    /// For bots (see `bot::bot_actions`): the `position_key` of each position
+    /// the current player has acted from this turn,
+    pub(crate) positions_this_turn: Vec<u64>,
+    /// and the powers they have put on their units this turn (`true`) or
+    /// taken off them for good (`false`), as (unit, power, added), since each
+    /// unit last used a power.
+    pub(crate) power_changes: Vec<(u32, usize, bool)>,
 }
 
 /// A seed for a game that doesn't name one.
@@ -508,6 +515,8 @@ impl Game {
             kills_this_turn: Vec::new(),
             kills_last_turn: Vec::new(),
             public_hand: [Vec::new(), Vec::new()],
+            positions_this_turn: Vec::new(),
+            power_changes: Vec::new(),
         };
         game.scores[1 - first] = options.second_player_points;
 
@@ -1110,6 +1119,8 @@ impl Game {
             unit.moved = 0;
         }
         self.kills_last_turn = std::mem::take(&mut self.kills_this_turn);
+        self.positions_this_turn.clear();
+        self.power_changes.clear();
         log.push(format!("Turn {}: {}.", self.turn, SEAT_NAMES[self.current]));
         if !self.faceup.is_empty() {
             let card = self.faceup.remove(0);
@@ -1226,6 +1237,70 @@ impl Game {
             resample(&mut pending.preview);
         }
         game
+    }
+
+    /// How many copies of a power there are on all the units.
+    pub(crate) fn power_count(&self, power: usize) -> u32 {
+        self.units.iter().map(|u| u.count(Some(power))).sum()
+    }
+
+    /// Whether the current player put `power` on `unit` this turn, since the
+    /// unit last used a power.
+    pub(crate) fn power_added(&self, unit: u32, power: usize) -> bool {
+        self.power_changes.contains(&(unit, power, true))
+    }
+
+    /// Whether the current player took `power` off `unit` for good this turn
+    /// (it didn't go to *Vacuum*), since the unit last used a power.
+    pub(crate) fn power_removed(&self, unit: u32, power: usize) -> bool {
+        self.power_changes.contains(&(unit, power, false))
+    }
+
+    /// A hash of the position as the current player sees it. It leaves out
+    /// how far through the turn it is (the action count and the records for
+    /// bots) and what `determinize` resamples (the opponent's hidden cards, the
+    /// deck order and the random state), so a sampled copy of the game gives
+    /// the same keys as the real one.
+    pub fn position_key(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        let sorted = |cards: &[usize]| {
+            let mut cards = cards.to_vec();
+            cards.sort_unstable();
+            cards
+        };
+        for u in &self.units {
+            (u.id, u.owner, u.label, u.cell, u.facing).hash(&mut h);
+            (&u.powers[..], u.tokens, u.activations, u.z, u.moved).hash(&mut h);
+        }
+        (self.current, self.turn, self.scores, self.phase).hash(&mut h);
+        sorted(&self.hands[self.current]).hash(&mut h);
+        let opponent = 1 - self.current;
+        (self.hands[opponent].len(), self.deck.len(), self.draws).hash(&mut h);
+        (&self.discard, &self.faceup, &self.free_powers).hash(&mut h);
+        (self.spawned_this_turn, self.next_id, self.next_z).hash(&mut h);
+        (
+            &self.forbidden,
+            &self.kills_this_turn,
+            &self.kills_last_turn,
+        )
+            .hash(&mut h);
+        (sorted(&self.public_hand[0]), sorted(&self.public_hand[1])).hash(&mut h);
+        h.finish()
+    }
+
+    /// Whether `next`, this game after one of the current player's actions,
+    /// is back at a position they were already in this turn (including this
+    /// one).
+    pub fn repeats_position(&self, next: &Game) -> bool {
+        self.phase == Phase::Main
+            && next.phase == Phase::Main
+            && next.pending.is_none()
+            && (next.turn, next.current) == (self.turn, self.current)
+            && {
+                let key = next.position_key();
+                key == self.position_key() || self.positions_this_turn.contains(&key)
+            }
     }
 
     /// Take a card from the faceup row: the cards to its right slide left to

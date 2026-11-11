@@ -741,18 +741,25 @@ impl Game {
                 if self.pending.is_some() {
                     return Err(hard("Answer the current question first."));
                 }
+                // The position this action starts from, for bots
+                // (`repeats_position`).
+                let start = (self.phase == Phase::Main).then(|| self.position_key());
                 // Most actions need no answers: try resolving on a single copy
                 // first, and only set up a prompt if one is needed.
-                let (result, game, log) = run(self, action, seat, &[]);
+                let (result, mut game, log) = run(self, action, seat, &[]);
                 let log = match result {
                     Ok(()) => {
+                        if game.turn == self.turn {
+                            game.positions_this_turn.extend(start);
+                        }
                         *self = game;
                         self.pending = None;
                         log
                     }
                     Err(Stop::Illegal(message)) => return Err(hard(message)),
                     Err(Stop::Need(..)) => {
-                        let base = Box::new(self.clone());
+                        let mut base = Box::new(self.clone());
+                        base.positions_this_turn.extend(start);
                         self.settle(base, action.clone(), seat, Vec::new())?
                     }
                 };
@@ -996,6 +1003,14 @@ impl Game {
         }
     }
 
+    /// The game after `seat` takes `action`, if it finishes without a prompt.
+    pub fn after_unprompted(&self, seat: Seat, action: &Action) -> Option<Game> {
+        match run(self, action, seat, &[]) {
+            (Ok(()), game, _) if self.pending.is_none() => Some(game),
+            _ => None,
+        }
+    }
+
     /// The prompt waiting for an answer, if any.
     pub fn prompt(&self) -> Option<&Prompt> {
         self.pending.as_ref().map(|p| &p.prompt)
@@ -1138,9 +1153,14 @@ impl Game {
                     return illegal("That unit doesn't have that power.");
                 };
                 let (owner, name) = (u.owner, u.name());
+                let copies = self.power_count(p.power);
                 self.unit_mut(unit).powers.remove(index);
                 ctx.log(format!("{} discarded {}.", cap(name), power_name(p.power)));
                 self.remove_from_board(p, owner, Some(unit), true, ctx)?;
+                // Unless *Vacuum* caught it, the power has left the board.
+                if self.power_count(p.power) < copies {
+                    self.power_changes.push((unit, p.power, false));
+                }
             }
 
             Action::Activate {
@@ -1153,6 +1173,10 @@ impl Game {
                 main(self)?;
                 no_force(force)?;
                 self.activate(seat, unit, facing, power, origin, ctx)?;
+                if power.is_some() {
+                    // It may have used a power it was given this turn.
+                    self.power_changes.retain(|&(u, ..)| u != unit);
+                }
             }
 
             Action::EndTurn { .. } => {
@@ -1193,11 +1217,13 @@ impl Game {
             )),
             None => {
                 self.unit_mut(id).powers.push(p);
+                self.power_changes.push((id, p.power, true));
                 Ok(())
             }
             Some(_) if len < MAX_POWERS => illegal("Only replace a power when the unit is full."),
             Some(r) if r >= len => illegal("That unit doesn't have that power."),
             Some(r) => {
+                let copies = self.power_count(self.unit(id).powers[r].power);
                 let old = std::mem::replace(&mut self.unit_mut(id).powers[r], p);
                 ctx.log(format!(
                     "{} replaced {}.",
@@ -1205,7 +1231,13 @@ impl Game {
                     power_name(old.power)
                 ));
                 let owner = self.unit(id).owner;
-                self.remove_from_board(old, owner, Some(id), true, ctx)
+                self.remove_from_board(old, owner, Some(id), true, ctx)?;
+                // Unless *Vacuum* caught it, the old power has left the board.
+                if self.power_count(old.power) < copies {
+                    self.power_changes.push((id, old.power, false));
+                }
+                self.power_changes.push((id, p.power, true));
+                Ok(())
             }
         }
     }
@@ -1758,6 +1790,22 @@ impl Game {
         self.restore_flag(ctx)
     }
 
+    /// The units with *Vacuum* that can catch a power removed from `from`.
+    fn vacuums(&self, from: Option<u32>) -> Vec<u32> {
+        self.top_ids()
+            .into_iter()
+            .filter(|&v| {
+                Some(v) != from && self.unit(v).has(Effect::Vacuum) && self.adjacent_to_flag(v)
+            })
+            .collect()
+    }
+
+    /// Whether *Vacuum* would catch a power discarded from (or replaced on)
+    /// `unit`, instead of it leaving the board.
+    pub(crate) fn vacuum_catches(&self, unit: u32) -> bool {
+        !self.vacuums(Some(unit)).is_empty()
+    }
+
     /// A power leaves the board: to a *Vacuum* unit, a hand (*Recycle*), the
     /// discard pile, or (free powers) nowhere. The *Flag* power is handled by
     /// `restore_flag`. Powers knocked off a full unit skip *Vacuum* (`vacuum`
@@ -1774,13 +1822,7 @@ impl Game {
             return Ok(());
         }
         if vacuum {
-            let vacuums: Vec<u32> = self
-                .top_ids()
-                .into_iter()
-                .filter(|&v| {
-                    Some(v) != from && self.unit(v).has(Effect::Vacuum) && self.adjacent_to_flag(v)
-                })
-                .collect();
+            let vacuums = self.vacuums(from);
             if !vacuums.is_empty() {
                 let options = vacuums.iter().map(|&v| self.unit_opt(v)).collect();
                 let i = ctx.ask(

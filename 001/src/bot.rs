@@ -7,9 +7,9 @@
 //!   samples of the hidden information (`Game::determinize`) and adds up the
 //!   results, so it never looks at cards it shouldn't know.
 //!
-//! All bots stop taking actions after `action_cap` actions in a turn. Without a
-//! cap, search can wander into pointless loops (applying and discarding free
-//! powers forever).
+//! All bots stop taking actions after `action_cap` actions in a turn, so a
+//! turn can't go on forever (eg with *Split*, which makes a new unit that can
+//! split again), and they don't go round in circles (see `bot_actions`).
 
 use crate::data::{Effect, Seat};
 use crate::game::{Action, Game, Phase};
@@ -42,12 +42,79 @@ pub fn to_move(game: &Game) -> Seat {
 }
 
 /// The legal actions, except that after `cap` actions in a turn the only
-/// option is to end it (prompts can still be answered).
+/// option is to end it (prompts can still be answered), and that bots don't
+/// waste actions going round in circles:
+///
+/// - they don't go back to a position they were already in this turn (with
+///   an action that needs no answers on the way);
+/// - they don't undo their own changes to a unit's powers (see `takes_back`).
+///
+/// Without these rules the trained bot spent many turns adding the free
+/// *Walk* to a unit and discarding it again until it ran out of actions. Its
+/// network learned to like those moves from self-play games that were full of
+/// them, and the search plays its most visited move, so it kept choosing them
+/// even when it valued another move more.
 pub fn bot_actions(game: &Game, seat: Seat, cap: u32) -> Vec<Action> {
     if game.pending.is_none() && game.phase == Phase::Main && game.actions_this_turn >= cap {
         return vec![Action::EndTurn { score: false }];
     }
-    game.legal_actions(seat)
+    let mut actions = game.legal_actions(seat);
+    if game.pending.is_none() && game.phase == Phase::Main {
+        actions.retain(|a| {
+            !takes_back(game, a)
+                && !(only_changes_powers(a)
+                    && game
+                        .after_unprompted(seat, a)
+                        .is_some_and(|next| game.repeats_position(&next)))
+        });
+    }
+    actions
+}
+
+/// Whether an action only moves powers between units and hands. These are
+/// the only actions that can bring a turn back to an earlier position (with
+/// *Recycle*, even a card can go back to the hand). Every other one leaves a
+/// mark for the rest of the turn: a spawn, or an activation.
+fn only_changes_powers(action: &Action) -> bool {
+    matches!(
+        action,
+        Action::ApplyFree { .. } | Action::ApplyHand { .. } | Action::RemovePower { .. }
+    )
+}
+
+/// Whether an action undoes a change the current player made to a unit's
+/// powers earlier in the turn: discarding or replacing a power they put on the
+/// unit, or putting back one they took off it. It isn't undoing if *Vacuum*
+/// catches the power taken off, or if the unit has used a power since (it may
+/// have been that one).
+///
+/// Bots don't do this: it only uses up actions (and cards). Without the rule
+/// the trained bot, even once it couldn't go back to an earlier position,
+/// still added *Walk* to a unit two or three times and then discarded it
+/// again, or put a card on a unit only to discard it.
+fn takes_back(game: &Game, action: &Action) -> bool {
+    let (unit, added, replace) = match *action {
+        Action::ApplyFree {
+            power,
+            unit,
+            replace,
+            ..
+        } => (unit, Some(power), replace),
+        Action::ApplyHand {
+            card,
+            unit,
+            replace,
+            ..
+        } => (unit, Some(card), replace),
+        Action::RemovePower { unit, index, .. } => (unit, None, Some(index)),
+        _ => return false,
+    };
+    let removed = replace.and_then(|i| {
+        let u = game.units.iter().find(|u| u.id == unit)?;
+        Some(u.powers.get(i)?.power)
+    });
+    added.is_some_and(|p| game.power_removed(unit, p))
+        || removed.is_some_and(|p| game.power_added(unit, p) && !game.vacuum_catches(unit))
 }
 
 /// A small, fast, seedable random number generator (xorshift64*).
@@ -892,6 +959,219 @@ mod tests {
             ];
             play(new_game(seed), &mut agents, 10);
         }
+    }
+
+    /// Letters' turn, main phase, empty hands. Letters' home is (-1, 0),
+    /// (1, 0) and (0, 1); the flag is on (0, 3).
+    fn main_phase() -> Game {
+        let (mut game, _) = Game::new(Options {
+            first_player: Some(0),
+            seed: Some(7),
+            ..Options::default()
+        })
+        .unwrap();
+        game.phase = Phase::Main;
+        game.turn = 1;
+        game.current = 0;
+        game.hands = [Vec::new(), Vec::new()];
+        game
+    }
+
+    fn power(name: &str) -> usize {
+        crate::data::data()
+            .powers
+            .iter()
+            .position(|p| p.name == name)
+            .unwrap()
+    }
+
+    /// A Letters unit with these powers (cards, except *Walk*).
+    fn put(game: &mut Game, x: i32, y: i32, powers: &[&str]) -> u32 {
+        let powers = powers
+            .iter()
+            .map(|&name| crate::game::PowerRef {
+                power: power(name),
+                card: name != "Walk",
+            })
+            .collect();
+        let index = game.add_unit(Some(0), crate::data::Cell { x, y }, 0, powers);
+        let id = game.units[index].id;
+        game.sort_units();
+        id
+    }
+
+    fn add_walk(unit: u32) -> Action {
+        Action::ApplyFree {
+            power: power("Walk"),
+            unit,
+            replace: None,
+            force: false,
+        }
+    }
+
+    fn discard(unit: u32, index: usize) -> Action {
+        Action::RemovePower {
+            unit,
+            index,
+            to_hand: false,
+            force: false,
+        }
+    }
+
+    fn bot_can(game: &Game, action: &Action) -> bool {
+        assert!(
+            game.legal_actions(0).contains(action),
+            "{action:?} is legal"
+        );
+        bot_actions(game, 0, DEFAULT_ACTION_CAP).contains(action)
+    }
+
+    #[test]
+    fn bots_dont_undo_their_free_power_changes() {
+        let turn = |unit| Action::Activate {
+            unit,
+            facing: 1,
+            power: None,
+            origin: None,
+            force: false,
+        };
+        let mut game = main_phase();
+        let bare = put(&mut game, -1, 0, &[]);
+        let walker = put(&mut game, 1, 0, &["Walk"]);
+        let other = put(&mut game, 0, 1, &[]);
+        game.apply(0, &add_walk(bare)).unwrap();
+        assert!(
+            !bot_can(&game, &discard(bare, 0)),
+            "doesn't discard the Walk it just added"
+        );
+        // Even when something else happened in between, so that discarding it
+        // wouldn't go back to an earlier position.
+        game.apply(0, &turn(other)).unwrap();
+        assert!(!bot_can(&game, &discard(bare, 0)));
+        assert!(bot_can(&game, &add_walk(bare)), "can add a second Walk");
+        assert!(
+            bot_can(&game, &discard(walker, 0)),
+            "can discard a Walk the unit started the turn with"
+        );
+        game.apply(0, &discard(walker, 0)).unwrap();
+        game.apply(0, &add_walk(other)).unwrap();
+        assert!(
+            !bot_can(&game, &add_walk(walker)),
+            "doesn't add back the Walk it discarded"
+        );
+
+        game.apply(0, &turn(bare)).unwrap();
+        assert!(
+            !bot_can(&game, &discard(bare, 0)),
+            "turning doesn't use the Walk"
+        );
+        game.apply(0, &Action::EndTurn { score: false }).unwrap();
+        assert!(game.power_changes.is_empty() && game.positions_this_turn.is_empty());
+
+        // Once the unit has used a power, it may have been the free one.
+        let mut game = main_phase();
+        let walker = put(&mut game, -1, 0, &[]);
+        game.apply(0, &add_walk(walker)).unwrap();
+        let walk_home = Action::Activate {
+            unit: walker,
+            facing: 1,
+            power: Some(0),
+            origin: None,
+            force: false,
+        };
+        game.apply(0, &walk_home).unwrap();
+        assert!(bot_can(&game, &discard(walker, 0)));
+    }
+
+    #[test]
+    fn bots_dont_swap_free_powers_back() {
+        // With a second free power, one can replace the other.
+        let mut game = main_phase();
+        game.free_powers.push(power("Run"));
+        let apply = |power_name: &str, unit: u32, replace: usize| Action::ApplyFree {
+            power: power(power_name),
+            unit,
+            replace: Some(replace),
+            force: false,
+        };
+        let a = put(&mut game, -1, 0, &["Stun", "Grip"]);
+        game.apply(0, &add_walk(a)).unwrap();
+        assert!(
+            !bot_can(&game, &apply("Run", a, 2)),
+            "Run over the new Walk"
+        );
+        game.apply(0, &apply("Run", a, 0)).unwrap();
+        assert!(
+            !bot_can(&game, &apply("Walk", a, 0)),
+            "Walk over the new Run"
+        );
+
+        // A Walk replaced by Run is gone, so it doesn't come back either.
+        let b = put(&mut game, 1, 0, &["Stun", "Grip", "Walk"]);
+        game.apply(0, &apply("Run", b, 2)).unwrap();
+        assert!(!bot_can(&game, &apply("Walk", b, 0)));
+    }
+
+    #[test]
+    fn bots_can_feed_free_powers_to_vacuum() {
+        // A Walk that Vacuum catches goes to the flag: that's not undoing.
+        for vacuum in [&["Vacuum"][..], &["Vacuum", "Stun", "Grip"]] {
+            let mut game = main_phase();
+            put(&mut game, -2, 3, vacuum);
+            let bare = put(&mut game, -1, 0, &[]);
+            game.apply(0, &add_walk(bare)).unwrap();
+            assert!(bot_can(&game, &discard(bare, 0)), "{vacuum:?}");
+            if vacuum.len() == 1 {
+                game.apply(0, &discard(bare, 0)).unwrap();
+                assert!(bot_can(&game, &add_walk(bare)), "and can do it again");
+            }
+        }
+    }
+
+    #[test]
+    fn bots_dont_discard_cards_they_just_applied() {
+        let mut game = main_phase();
+        let bare = put(&mut game, -1, 0, &[]);
+        let stun = power("Stun");
+        game.hands[0] = vec![stun];
+        let apply = Action::ApplyHand {
+            card: stun,
+            unit: bare,
+            replace: None,
+            force: false,
+        };
+        game.apply(0, &apply).unwrap();
+        assert!(!bot_can(&game, &discard(bare, 0)));
+
+        // With Recycle at the flag the card would go back to the hand, so
+        // this could go on forever.
+        put(&mut game, -2, 3, &["Recycle"]);
+        game.apply(0, &discard(bare, 0)).unwrap();
+        assert_eq!(game.hands[0], vec![stun], "Recycle returned it");
+        assert!(!bot_can(&game, &apply), "doesn't put it back");
+    }
+
+    #[test]
+    fn bots_dont_go_back_to_earlier_positions() {
+        // With the flag next to Letters' home and a Vacuum unit there, a Walk
+        // can go round from one unit to the Vacuum unit and off the board.
+        let mut game = main_phase();
+        let flag = game.units.iter().position(|u| u.is_flag()).unwrap();
+        game.units[flag].cell = crate::data::Cell { x: 1, y: 2 };
+        let vacuum = put(&mut game, 0, 1, &["Vacuum"]);
+        let bare = put(&mut game, -1, 0, &[]);
+        game.apply(0, &add_walk(bare)).unwrap();
+        game.apply(0, &discard(bare, 0)).unwrap();
+        let powers = |game: &Game| {
+            game.units
+                .iter()
+                .find(|u| u.id == vacuum)
+                .unwrap()
+                .powers
+                .len()
+        };
+        assert_eq!(powers(&game), 2, "Vacuum caught it");
+        assert!(!bot_can(&game, &discard(vacuum, 1)), "back to the start");
     }
 
     #[test]

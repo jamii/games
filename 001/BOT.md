@@ -75,8 +75,33 @@ All of them are in `src/bot.rs` and implement `bot::Agent`.
   favourite move without search, or guiding the search: one network call per
   new position gives both the move priors and the leaf value.
 
-Every bot stops after 16 actions in a turn. Without a cap, search can wander
-into pointless loops (applying and discarding free powers forever).
+Every bot stops after 16 actions in a turn, so a turn can't go on forever
+(eg with *Split*, which makes a new unit that can split again).
+
+Bots also don't go round in circles (`bot::bot_actions`). They never take an
+action that brings the turn back to a position they were already in, and they
+don't undo their own changes to a unit's powers: discarding (or replacing) a
+power they put on the unit this turn, or putting back one they took off. That
+isn't undoing if *Vacuum* catches the power, or if the unit has used a power
+in between. Before these rules the trained bot often spent the rest of its
+turn adding *Walk* to a unit and discarding it again until it hit the cap. Its
+network had learned to like those moves from self-play games full of them, and
+the search plays its most visited move, so it kept choosing them even when it
+valued another move (often ending the turn) more. On the same 40 games of the
+web app's bot against itself (`cargo run --release --example bot_loops -- 40
+200`):
+
+| | before | after |
+|---|---|---|
+| turns that came back to an earlier position | 141 of 400 | 0 of 410 |
+| actions that came back to an earlier position | 826 | 0 |
+| *Walk* taken back (added and discarded, or the other way round) | 1,026 | 60 (all to *Vacuum*, or after the unit used a power) |
+| turns that hit the 16-action cap | 113 | 23 |
+| actions in a turn | 9.1 | 7.7 |
+| thinking time per decision | 66 ms | 77 ms |
+
+It plays as well as before: against the old bot, on 200 deals with each
+taking each seat, it won 209 of 400 games (52%, 95% interval 47–57%).
 
 **Evaluation** (`bot::features`, `bot::evaluate`). Everything is from one
 player's point of view, using only what they can see:
