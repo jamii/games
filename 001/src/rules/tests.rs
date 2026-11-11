@@ -231,6 +231,18 @@ fn push() {
         ((-3, 2), (-1, 2), (3, 2))
     );
 
+    // With Spin, targets the same distance away: the user follows into the space
+    // of the one that came into play first.
+    let mut g = game();
+    let a = put(&mut g, Some(0), (-3, 2), E, &["Push", "Spin"]);
+    let b = put(&mut g, Some(1), (-1, 2), E, &[]);
+    let d = put(&mut g, Some(1), (-4, 3), E, &[]);
+    activate(&mut g, a, E, 0).unwrap();
+    assert_eq!(
+        (at(&g, a), at(&g, b), at(&g, d)),
+        ((-1, 2), (1, 2), (-5, 4))
+    );
+
     // Stubborn units can't be pushed; Spiky ones kill the pusher.
     let mut g = game();
     let a = put(&mut g, Some(0), (-5, 2), E, &["Push"]);
