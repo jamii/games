@@ -56,7 +56,11 @@ units slide, turn, pop in when spawned and flash away when killed; a unit that a
 sends out a ring and names the power it used; cards fly between the market, the piles,
 the hands and the units (a card the other player puts on a unit is first held up over
 the board so you can read it); points and counts pop; a banner announces each turn; and
-the line above the board says what just happened (tap it for the log). With
+the line above the board says what just happened (tap it for the log). The end of a turn
+plays out in order: each end-of-turn power (*Heavy* pulls in, *Stinky* pushes out) and
+the units it moves, then the count at the flag (the ending player's units one by one with
+a running count, then the other player's), then the score; the next turn's cards and
+anything else wait until it's done, and a tap skips to the end. With
 *reduce motion* set in the system, only that line changes.
 
 ## Single player in the browser

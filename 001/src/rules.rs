@@ -632,11 +632,28 @@ impl Game {
     /// Units adjacent to the flag for each player, counting *Strong*, *Weak*,
     /// *Friendly*, *Bridge* and *Telepath*.
     pub fn auto_flag_counts(&self) -> [u32; 2] {
+        let mut counts = [0, 0];
+        self.each_flag_unit(|_, seat, weight| counts[seat] += weight);
+        counts
+    }
+
+    /// The units that make up `auto_flag_counts`: (unit, player, how many it
+    /// counts as), for the end-of-turn scoring animation.
+    pub fn auto_flag_units(&self) -> Vec<(u32, Seat, u32)> {
+        let mut units = Vec::new();
+        self.each_flag_unit(|id, seat, weight| {
+            if weight > 0 {
+                units.push((id, seat, weight));
+            }
+        });
+        units
+    }
+
+    fn each_flag_unit(&self, mut count: impl FnMut(u32, Seat, u32)) {
         let Some(flag) = self.flag_holder() else {
-            return [0, 0];
+            return;
         };
         let fx = self.effects();
-        let mut counts = [0, 0];
         let tops = self.top_ids();
         for &id in &tops {
             if id == flag || !self.adjacent(id, flag) {
@@ -646,7 +663,7 @@ impl Game {
             let weight = self.weight(id, Some(&fx.mods));
             for seat in 0..2 {
                 if sides[seat] {
-                    counts[seat] += weight;
+                    count(id, seat, weight);
                 }
             }
         }
@@ -659,11 +676,10 @@ impl Game {
                     && !tops.contains(&u.id)
                     && hex_dist(u.cell, flag_cell) == 1
                 {
-                    counts[owner] += 1;
+                    count(u.id, owner, 1);
                 }
             }
         }
-        counts
     }
 }
 
@@ -1332,9 +1348,20 @@ impl Game {
                 .position(|&t| t == pick)
                 .expect("the choice is in the list");
             let (id, effect) = todo.remove(index);
-            match effect {
-                Effect::Heavy => self.heavy(id, ctx)?,
-                _ => self.stinky(id, ctx)?,
+            // Said only when the power moved something (the moves follow in the log).
+            let (mark, name) = (ctx.log.len(), cap(self.unit(id).name()));
+            let word = match effect {
+                Effect::Heavy => {
+                    self.heavy(id, ctx)?;
+                    "heavy"
+                }
+                _ => {
+                    self.stinky(id, ctx)?;
+                    "stinky"
+                }
+            };
+            if ctx.log.len() > mark {
+                ctx.log.insert(mark, format!("{name} is {word}."));
             }
         }
 
