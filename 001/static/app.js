@@ -914,8 +914,7 @@ function later(ms, fn) {
   const step = { fn, at: performance.now() + ms };
   step.timer = setTimeout(() => {
     pace.steps = pace.steps.filter(x => x !== step);
-    fn();
-    if (!pace.steps.length) showWaiting();
+    try { fn(); } finally { if (!pace.steps.length) showWaiting(); }
   }, ms);
   pace.steps.push(step);
 }
@@ -928,7 +927,10 @@ function skipAhead() {
   if (!pace.steps.length) return;
   const steps = pace.steps.sort((a, b) => a.at - b.at);
   pace.steps = [];
-  for (const step of steps) { clearTimeout(step.timer); step.fn(); }
+  for (const step of steps) {
+    clearTimeout(step.timer);
+    try { step.fn(); } catch (e) { console.error(e); }
+  }
   for (const a of document.getAnimations()) {
     try { if (a.effect && a.effect.getComputedTiming().iterations !== Infinity) a.finish(); } catch (e) { /* already gone */ }
   }
@@ -1026,12 +1028,12 @@ function playEndOfTurn(end, p, g, after) {
       let n = 0;
       for (const f of list) {
         n += f.weight;
-        const shown = n;
+        const count = n;
         later(t, () => {
           ripple(f.at.x, f.at.y, SEAT_KEYS[seat], 'count');
           pulse(bodyOf(f.unit));
-          floater(String(shown), bodyOf(f.unit), cls);
-          setStat(seat, shown);
+          floater(String(count), bodyOf(f.unit), cls);
+          setStat(seat, count);
         });
         t += COUNT_STEP;
       }
