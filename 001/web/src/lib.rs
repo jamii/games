@@ -220,3 +220,41 @@ pub extern "C" fn panic_message() -> usize {
     let message = PANIC.lock().map(|m| m.clone()).unwrap_or_default();
     answer(message)
 }
+
+/// The game so far, for the page to keep so it can pick the game up again
+/// after a reload (the page reloads when it's republished): JSON text, or ""
+/// once the game is over. Pass it back unparsed: JavaScript numbers would
+/// round the 64-bit seed.
+#[unsafe(no_mangle)]
+pub extern "C" fn saved_game() -> usize {
+    let saved = with(|s| s.session.as_ref().and_then(|session| session.saved_game()));
+    answer(saved.map(|v| v.to_string()).unwrap_or_default())
+}
+
+/// Picks up a game kept from `saved_game`, and answers the messages for the
+/// page. If it can't, the current game stays and the page is told why.
+#[unsafe(no_mangle)]
+pub extern "C" fn resume(ptr: *mut u8, len: usize) -> usize {
+    let text = input(ptr, len);
+    let out = with(|s| {
+        let conn = s.conn;
+        let Some(session) = s.session.as_mut() else {
+            return Vec::new();
+        };
+        let result = serde_json::from_str(&text)
+            .map_err(|e| e.to_string())
+            .and_then(|saved| session.resume(&saved));
+        match result {
+            Ok(out) => out,
+            Err(why) => {
+                let message =
+                    format!("Your last game couldn't be picked up ({why}), so this is a new one.");
+                vec![(
+                    conn,
+                    serde_json::json!({ "type": "notice", "message": message }).to_string(),
+                )]
+            }
+        }
+    });
+    messages(out)
+}

@@ -9,6 +9,7 @@ const DELAY_MS = 1000;                // each bot action takes at least this lon
 let wasm = null;
 let seated = false, botRunning = false;
 const waiting = []; // messages from the page that arrived before the engine was ready
+let kept = null;    // a game the page kept from before it reloaded, to pick up once the engine starts
 const encoder = new TextEncoder(), decoder = new TextDecoder();
 
 // Calls an export that answers text: with a string argument (passed in as
@@ -53,10 +54,19 @@ async function boot() {
     }
     const seed = crypto.getRandomValues(new Uint32Array(2));
     deliver(call('start', seed[0], seed[1], SIMULATIONS, SAMPLES));
+    if (kept) deliver(call('resume', kept));
+    kept = null;
+    keep();
     for (const text of waiting.splice(0)) receive(text);
   } catch (e) {
     failed(e);
   }
+}
+
+// Gives the page the game so far to keep (or "" once it's over), so a reload
+// (the page reloads when it's republished) picks the game up where it was.
+function keep() {
+  postMessage({ type: 'keep-game', game: call('saved_game') });
 }
 
 function receive(text) {
@@ -69,6 +79,7 @@ function receive(text) {
     deliver(out);
     // Notes (lines typed in the chat) are saved by the page, in the artifact's database.
     for (const note of JSON.parse(call('notes'))) postMessage({ type: 'save-note', note });
+    keep();
     // One player: sit them down and give the other seat to the bot.
     if (!seated && JSON.parse(text).type === 'hello') {
       seated = true;
@@ -100,6 +111,7 @@ async function runBot() {
       await pause(Math.max(0, DELAY_MS - (performance.now() - started)));
       if (!wasm) break;
       deliver(call('bot_finish'));
+      keep();
     }
   } catch (e) {
     failed(e);
@@ -108,5 +120,18 @@ async function runBot() {
   }
 }
 
-self.onmessage = ({ data }) => receive(data);
+self.onmessage = ({ data }) => {
+  if (data && typeof data === 'object' && 'resume' in data) {
+    // Sent once, before anything else, when the page has a kept game.
+    if (wasm) {
+      deliver(call('resume', data.resume));
+      keep();
+      runBot();
+    } else {
+      kept = data.resume;
+    }
+    return;
+  }
+  receive(data);
+};
 boot();
