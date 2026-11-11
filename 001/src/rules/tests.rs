@@ -202,12 +202,25 @@ fn push() {
     put(&mut g, Some(1), (-1, 2), E, &[]);
     assert!(activate(&mut g, a, E, 0).is_err());
 
-    // With Beam, every pushed unit needs a space behind it.
+    // With Beam, the furthest unit is pushed first, so a line of touching units
+    // moves together.
+    let mut g = game();
+    let a = put(&mut g, Some(0), (-5, 2), E, &["Push", "Beam"]);
+    let b = put(&mut g, Some(1), (-3, 2), E, &[]);
+    let c = put(&mut g, Some(1), (-1, 2), E, &[]);
+    activate(&mut g, a, E, 0).unwrap();
+    assert_eq!(
+        (at(&g, a), at(&g, b), at(&g, c)),
+        ((-3, 2), (-1, 2), (1, 2)),
+        "contiguous line"
+    );
+    // ...but the furthest still needs an empty space behind it.
     let mut g = game();
     let a = put(&mut g, Some(0), (-5, 2), E, &["Push", "Beam"]);
     put(&mut g, Some(1), (-3, 2), E, &[]);
     put(&mut g, Some(1), (-1, 2), E, &[]);
-    assert!(activate(&mut g, a, E, 0).is_err(), "contiguous line");
+    put(&mut g, Some(1), (1, 2), E, &["Stubborn"]);
+    assert!(activate(&mut g, a, E, 0).is_err(), "blocked line");
     let mut g = game();
     let a = put(&mut g, Some(0), (-5, 2), E, &["Push", "Beam"]);
     let b = put(&mut g, Some(1), (-3, 2), E, &[]);

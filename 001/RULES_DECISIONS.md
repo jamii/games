@@ -18,7 +18,7 @@ Tests for most of these are in `src/rules/tests.rs`.
 - **A power that wouldn't do anything can't be used.** For example *Walk* when blocked,
   *Neutralize* with no powerless units, or *Mine* away from the flag. You can still activate
   the unit just to turn it.
-- **Several targets are handled one at a time, nearest first** (ties: the unit that came
+- **Several targets are handled one at a time, nearest first** (except *Push*, furthest first) (ties: the unit that came
   into play first). The rules say the current player chooses the order.
   **(simplification)** The order rarely matters, and asking every time would be tedious.
 - **Powers that only make sense with one target** (*Swap*, *Jump*, *Climb*, *Circle*,
@@ -157,8 +157,10 @@ Tests for most of these are in `src/rules/tests.rs`.
 - *Rush*: moves as far as it can and stops before a unit, the edge of the board, a home space
   it can't enter, or (for the flag) its movement limit. It must move at least one space.
 - *Push*: each target must be in a straight line from the user, and moves one space directly
-  away from it. Then the user moves into the space the nearest target left (stacking if
-  something else ended up there). Even a distant target (*Reach*, *Beam*) is pushed this way,
+  away from it. Targets are pushed furthest first (Jamie, 2026-11-11), so *Beam* can push a
+  whole line of touching units, each into the space the one beyond it just left; only the
+  furthest needs an empty space behind it at the start. Then the user moves into the space
+  the nearest target left (stacking if something else ended up there). Even a distant target (*Reach*, *Beam*) is pushed this way,
   and the user then jumps into its old space.
 - *Pull*: the nearest target must be in a straight line. The user steps one space directly
   away from it (that space must be empty), then every target moves into the user's old space,

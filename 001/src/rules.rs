@@ -2052,8 +2052,14 @@ impl Game {
                 if self.effects().gripped.contains(&user) {
                     return illegal("A gripped unit can't move itself, so it can't push.");
                 }
-                let targets = self.all_targets(user, origin)?;
-                let mut first_space = None;
+                // Push the furthest target first, so a unit can be pushed into the
+                // space another target has just left (Beam down a line of units).
+                // Targets come nearest first; the stable sort keeps tie order.
+                let mut targets = self.all_targets(user, origin)?;
+                targets.sort_by_key(|&t| {
+                    std::cmp::Reverse(line_dir(cell, self.unit(t).cell).map_or(0, |(_, d)| d))
+                });
+                let mut nearest_space = None;
                 for t in targets {
                     if !self.alive(user) {
                         break;
@@ -2069,10 +2075,11 @@ impl Game {
                     if !self.can_move(&self.effects(), t, to, user, false) {
                         return illegal("There's no empty space behind the pushed unit.");
                     }
-                    first_space.get_or_insert(from);
+                    // The last target pushed is the nearest: the user follows into its space.
+                    nearest_space = Some(from);
                     self.do_moves(&[(t, to)], user, ctx)?;
                 }
-                match first_space {
+                match nearest_space {
                     Some(space) if self.alive(user) => {
                         if !self.can_move(&self.effects(), user, space, user, true) {
                             return illegal("The unit can't follow into the space.");
