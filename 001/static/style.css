@@ -449,7 +449,6 @@ button.big { padding: 8px 18px; font-size: 15px; font-weight: 700; border-radius
 .form-row { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
 .form-row label { min-width: 190px; }
 .form-row select, .form-row input[type=number] { font: inherit; padding: 3px 6px; }
-#note-text { width: 100%; font: inherit; padding: 6px 8px; border: 1px solid #c9c2b2; border-radius: 6px; resize: vertical; }
 .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
 .rules-text { white-space: pre-wrap; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .power-list .cards .card { width: 190px; min-height: 0; }

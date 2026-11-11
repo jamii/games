@@ -8,7 +8,8 @@
 //
 // Then, on a phone: everything fits on the screen without scrolling, and the
 // bot's moves are animated. And with a stand-in for the artifact's database,
-// the Note button saves a note there that replays the game.
+// a line typed in the chat goes in the log and is saved there as a note that
+// replays the game (without one, it only goes in the log).
 //
 // Options (environment variables): URL (default http://localhost:3125/), SEED.
 const { chromium, devices } = require('playwright');
@@ -36,8 +37,15 @@ function rand() {
   const help = await page.textContent('#inspector');
   if (!help.includes('against the bot')) throw new Error('the help text is the two-player one');
   if (await page.isVisible('button[data-act=toggle-mode]')) throw new Error('the rules switch is showing');
-  // No server, so no server log for notes.
-  if (await page.isVisible('button[data-act=note]')) throw new Error('the Note button is showing');
+  // No database here, so the chat only goes in the log, and doesn't say it keeps notes.
+  if (await page.$('[data-act=note], [data-modal=note]')) throw new Error('there is a Note button');
+  const plain = await page.getAttribute('#chat-input', 'placeholder');
+  if (plain !== 'Say something…') throw new Error(`the chat box says "${plain}" without a database`);
+  await page.fill('#chat-input', 'Just chatting.');
+  await page.press('#chat-input', 'Enter');
+  await page.waitForFunction(() => view.log.some(e => e.chat && e.text === 'Just chatting.'), null, { timeout: 5000 });
+  await page.waitForTimeout(300);
+  if (await page.isVisible('#toast')) throw new Error(`a toast after chatting without a database: ${await page.textContent('#toast')}`);
 
   // Undo: make an undoable move on my first main turn, undo it.
   let undone = false;
@@ -168,16 +176,27 @@ async function notesCheck(browser, errors) {
     if (s.cur === 0 && s.legal.length) await page.evaluate(() => { const l = view.game.legal; send({ type: 'action', action: l.find(a => a.type === 'take_faceup') || l.find(a => a.type === 'end_turn') || l[0] }); });
     await page.waitForTimeout(250);
   }
-  await page.click('#topbar button[data-act=note]');
-  await page.fill('#note-text', 'Test note from the single-player page.');
-  await page.click('.modal-box button[data-modal=save]');
+  const placeholder = await page.getAttribute('#chat-input', 'placeholder');
+  if (!/note a bug/.test(placeholder)) throw new Error(`the chat box doesn't say it takes notes: "${placeholder}"`);
+  // Select a unit (the flag is always there), so the note says what was selected.
+  const unit = await page.evaluate(() => (view.game.units.find(u => u.owner === 0) || view.game.units[0]).id);
+  await page.click(`.unit[data-unit="${unit}"] .body`);
+  await page.waitForFunction(u => ui.sel && ui.sel.unit === u, unit, { timeout: 5000 });
+  const text = 'Test note from the single-player page.';
+  await page.fill('#chat-input', text);
+  await page.press('#chat-input', 'Enter');
   await page.waitForFunction(() => window.__notes.length > 0 && !document.getElementById('toast').hidden, null, { timeout: 10000 });
   const toast = await page.textContent('#toast span');
   const saved = await page.evaluate(() => window.__notes[0]);
+  const inLog = await page.evaluate(t => view.log.some(e => e.chat && e.seat === 0 && e.text === t), text);
   const fs = require('fs');
   fs.writeFileSync(path.join(__dirname, 'screenshots', 'single-player-note.json'), JSON.stringify(saved.body));
-  console.log(`note: saved to "${saved.name}" with ${saved.body.actions.length} actions, turn ${saved.body.turn}; toast "${toast}"`);
-  if (saved.name !== 'notes' || saved.body.text !== 'Test note from the single-player page.') throw new Error('the note was not saved');
-  if (!saved.body.actions.length || saved.body.actions[0].seat === undefined || !saved.body.options) throw new Error('the note has no replay');
-  if (!/saved/.test(toast)) throw new Error(`unexpected toast: ${toast}`);
+  const b = saved.body;
+  console.log(`note: saved to "${saved.name}" with ${b.actions.length} actions, turn ${b.turn}, showing "${b.context.showing}", selected ${JSON.stringify(b.context.selected)}; toast "${toast}"`);
+  if (!inLog) throw new Error('the note is not in the log');
+  if (saved.name !== 'notes' || b.text !== text || b.kind !== 'comment' || b.status !== 'open' || !b.time) throw new Error('the note was not saved');
+  if (!b.actions.length || b.actions[0].seat === undefined || !b.options || typeof b.seed !== 'string') throw new Error('the note has no replay');
+  if (!b.context.showing || !b.context.screen || !Array.isArray(b.log) || !b.log.length) throw new Error('the note does not say what the screen showed');
+  if (!b.context.selected || b.context.selected.unit !== unit) throw new Error('the note does not say which unit was selected');
+  if (!/Saved/.test(toast)) throw new Error(`unexpected toast: ${toast}`);
 }

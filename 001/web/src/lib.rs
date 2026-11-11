@@ -22,8 +22,8 @@ struct State {
     job: Option<BotJob>,
     answer: Option<Action>,
     out: Vec<u8>,
-    /// Notes the player wrote (journal records of kind "comment"), for the
-    /// page to save; the rest of the journal is dropped.
+    /// Notes: the lines the player typed in the chat (journal records of kind
+    /// "comment"), for the page to save; the rest of the journal is dropped.
     notes: Vec<serde_json::Value>,
 }
 

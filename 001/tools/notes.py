@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""The notes players left with the Note button, from the server's journal.
+"""The notes players left in the chat box (every chat line is kept as a note),
+from the server's journal.
 
     tools/notes.py [--dir logs] [--days 7]       list them, oldest first
     tools/notes.py --save N FILE                 save note N for replaying:

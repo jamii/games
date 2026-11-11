@@ -12,10 +12,11 @@
 //! and `BOT_DELAY_MS` the pause before each of its actions (default 1000).
 //!
 //! Every action (players' and the bot's, refused ones too), undo, new game,
-//! seat change and player's note goes in a journal on disk, one JSON object a
-//! line, in `LOG_DIR/journal-YYYY-MM-DD.jsonl` (default `logs/`, UTC dates),
-//! kept for `LOG_DAYS` days (default 7; 0 keeps none). `tools/notes.py` lists
-//! the notes, and `examples/replay.rs` replays the game a note was made in.
+//! seat change and chat line (each a player's note) goes in a journal on disk,
+//! one JSON object a line, in `LOG_DIR/journal-YYYY-MM-DD.jsonl` (default
+//! `logs/`, UTC dates), kept for `LOG_DAYS` days (default 7; 0 keeps none).
+//! `tools/notes.py` lists the notes, and `examples/replay.rs` replays the game
+//! a note was made in.
 
 use axum::Router;
 use axum::extract::State;

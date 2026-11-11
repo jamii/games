@@ -6,9 +6,12 @@
 //   BOT_DELAY_MS=50 PORT=3124 cargo run --release &
 //   node tests/bot_seat.js
 //
-// Midway it leaves a note with the Note button, and checks the server saved it.
+// Midway it notes something in the chat box, and checks that the line is in the
+// log and the server saved it in its journal as a note (with the game's moves).
 //
-// Options (environment variables): URL (default http://localhost:3124/), SEED.
+// Options (environment variables): URL (default http://localhost:3124/), SEED,
+// LOG_DIR (the server's journal: default logs/ in this folder, where the server
+// writes it when started here; otherwise give both the same absolute path).
 const { chromium } = require('playwright');
 const path = require('path');
 
@@ -56,13 +59,9 @@ function rand() {
       legal: view.game.legal || [], prompt: !!view.game.prompt, thinking: view.seats[1].thinking,
     }));
     if (state.phase === 'over' || state.turn > 60) break;
-    // Midway, leave a note: the server confirms it's in its log.
+    // Midway, note something in the chat: it's in the log and the server's journal.
     if (!noted && state.turn >= 4 && state.current === 0 && !state.thinking) {
-      await page.click('#topbar button[data-act=note]');
-      await page.fill('#note-text', 'Test note: this position looks odd.');
-      await page.click('.modal-box button[data-modal=save]');
-      await page.waitForFunction(() => !document.getElementById('toast').hidden
-        && /Noted/.test(document.getElementById('toast').textContent), null, { timeout: 5000 });
+      await checkNote(page, state.turn);
       noted = true;
     }
     if (Date.now() - started > 240000) throw new Error('game took too long');
@@ -92,3 +91,27 @@ function rand() {
   console.log('bot seat test passed');
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });
+
+// Types a note in the chat box and finds it in the log and in the journal.
+async function checkNote(page, turn) {
+  const fs = require('fs');
+  const placeholder = await page.getAttribute('#chat-input', 'placeholder');
+  if (!/note a bug/.test(placeholder)) throw new Error(`the chat box doesn't say it takes notes: "${placeholder}"`);
+  const text = `Test note ${Date.now()}: this position looks odd.`;
+  await page.fill('#chat-input', text);
+  await page.press('#chat-input', 'Enter');
+  await page.waitForFunction(t => view.log.some(e => e.chat && e.text === t), text, { timeout: 5000 });
+  const dir = path.resolve(__dirname, '..', process.env.LOG_DIR || 'logs');
+  let note = null;
+  for (let i = 0; i < 20 && !note; i++) {
+    const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => /^journal-.*\.jsonl$/.test(f)).sort() : [];
+    const lines = files.length ? fs.readFileSync(path.join(dir, files[files.length - 1]), 'utf8').trim().split('\n') : [];
+    note = lines.map(l => { try { return JSON.parse(l); } catch (e) { return {}; } }).find(r => r.kind === 'comment' && r.text === text);
+    if (!note) await page.waitForTimeout(100);
+  }
+  if (!note) throw new Error(`the note isn't in the server's journal in ${dir}`);
+  if (note.seat !== 0 || note.turn !== turn || !note.actions.length || !note.options || !note.context.showing) {
+    throw new Error(`the note is missing details: ${JSON.stringify(note).slice(0, 300)}`);
+  }
+  console.log(`note: in the journal with ${note.actions.length} actions, turn ${note.turn}, showing "${note.context.showing}"`);
+}

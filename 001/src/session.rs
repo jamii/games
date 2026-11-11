@@ -22,8 +22,10 @@ use std::sync::Arc;
 const LOG_LIMIT: usize = 1000;
 const LOG_SENT: usize = 300;
 const UNDO_LIMIT: usize = 200;
-const CHAT_LIMIT: usize = 500;
-const COMMENT_LIMIT: usize = 4000;
+/// Chat lines are also bug notes, so they can be long.
+const CHAT_LIMIT: usize = 2000;
+/// How many of the log's last lines a note keeps.
+const NOTE_LOG_LINES: usize = 40;
 
 /// Messages to deliver: (connection, JSON text).
 pub type Outbox = Vec<(u64, String)>;
@@ -46,21 +48,19 @@ enum ClientMsg {
         action: Action,
     },
     Undo,
+    /// A line in the log's chat. With a journal it's also a note for whoever
+    /// looks after the game (eg a bug), kept with what the browser was showing
+    /// and everything needed to replay the game.
     Chat {
         text: String,
+        #[serde(default)]
+        context: Value,
     },
     AddBot {
         seat: Seat,
     },
     RemoveBot {
         seat: Seat,
-    },
-    /// A note for whoever looks after the game (eg a bug), kept in the journal
-    /// with what the browser was showing and everything needed to replay the game.
-    Comment {
-        text: String,
-        #[serde(default)]
-        context: Value,
     },
 }
 
@@ -153,8 +153,9 @@ pub struct Session {
     actions: Vec<(Seat, Action)>,
     /// How many actions there were when the current prompt's action began.
     prompt_from: usize,
-    /// When on (the server turns it on), a record of every action, seat change
-    /// and comment, for the caller to store: see `take_journal`.
+    /// When on (the server and the browser build turn it on), a record of
+    /// every action, seat change and chat line, for the caller to store: see
+    /// `take_journal`.
     journal: Option<Vec<Value>>,
     /// The token of the browser in each seat.
     seats: [Option<String>; 2],
@@ -222,8 +223,10 @@ impl Session {
 
     /// The journal records since the last call: one JSON object per action
     /// (players' and the bot's, refused ones too), undo, new game, seat change
-    /// and comment. Each names the game by its seed; a comment also carries
-    /// the game's options and actions (the format `examples/replay.rs` reads).
+    /// and chat line (kind "comment": a player's note). Each names the game by
+    /// its seed; a comment also carries what the player's screen showed, the
+    /// log's last lines and the game's options and actions (the format
+    /// `examples/replay.rs` reads).
     pub fn take_journal(&mut self) -> Vec<Value> {
         self.journal.as_mut().map(std::mem::take).unwrap_or_default()
     }
@@ -247,7 +250,10 @@ impl Session {
         let id = self.next_conn;
         self.next_conn += 1;
         self.conns.insert(id, None);
-        let out = vec![(id, init_message()), (id, self.state_message(None))];
+        let out = vec![
+            (id, init_message(self.journal.is_some())),
+            (id, self.state_message(None)),
+        ];
         (id, out)
     }
 
@@ -437,12 +443,28 @@ impl Session {
                 self.broadcast()
             }
 
-            ClientMsg::Chat { text } => {
+            ClientMsg::Chat { text, context } => {
                 let text: String = text.trim().chars().take(CHAT_LIMIT).collect();
                 if text.is_empty() {
                     return Vec::new();
                 }
                 let seat = self.seat_of(id);
+                if self.journal.is_some() {
+                    let recent = self.log.len().saturating_sub(NOTE_LOG_LINES);
+                    let log: Vec<&str> =
+                        self.log[recent..].iter().map(|e| e.text.as_str()).collect();
+                    let entry = json!({
+                        "kind": "comment",
+                        "seat": seat,
+                        "text": text,
+                        "context": context,
+                        "log": log,
+                        "options": self.game.options,
+                        "seed": self.game.options.seed,
+                        "actions": self.actions,
+                    });
+                    self.record(entry);
+                }
                 self.log.push(LogEntry {
                     seat,
                     text,
@@ -491,31 +513,6 @@ impl Session {
                 );
                 self.record(json!({ "kind": "seat", "event": "remove_bot", "seat": seat }));
                 self.broadcast()
-            }
-
-            ClientMsg::Comment { text, context } => {
-                let text: String = text.trim().chars().take(COMMENT_LIMIT).collect();
-                if text.is_empty() {
-                    return Vec::new();
-                }
-                if self.journal.is_none() {
-                    return self.error(id, "This game doesn't keep a log for notes.", None);
-                }
-                let recent = self.log.len().saturating_sub(40);
-                let log: Vec<&str> = self.log[recent..].iter().map(|e| e.text.as_str()).collect();
-                let entry = json!({
-                    "kind": "comment",
-                    "seat": self.seat_of(id),
-                    "text": text,
-                    "context": context,
-                    "log": log,
-                    "options": self.game.options,
-                    "seed": self.game.options.seed,
-                    "actions": self.actions,
-                });
-                self.record(entry);
-                let notice = json!({ "type": "notice", "message": "Noted in the server log." });
-                vec![(id, notice.to_string())]
             }
         }
     }
@@ -603,8 +600,9 @@ impl Session {
     }
 }
 
-/// The static data the client needs: the board, the cards and the rules.
-pub fn init_message() -> String {
+/// The static data the client needs: the board, the cards and the rules, and
+/// whether lines typed in the chat are kept as notes (with a journal).
+pub fn init_message(notes: bool) -> String {
     let d = data();
     let board: Vec<Value> = d
         .board
@@ -629,6 +627,7 @@ pub fn init_message() -> String {
         "seat_names": SEAT_NAMES,
         "labels": LABELS,
         "max_powers": MAX_POWERS,
+        "notes": notes,
     })
     .to_string()
 }
@@ -687,7 +686,7 @@ mod tests {
     }
 
     #[test]
-    fn a_comment_carries_what_replays_the_game_exactly() {
+    fn a_chat_line_is_a_note_that_replays_the_game_exactly() {
         let bot = BotConfig {
             simulations: 8,
             samples: 1,
@@ -701,7 +700,7 @@ mod tests {
         s.handle(me, r#"{"type":"add_bot","seat":1}"#);
         let mut rng = crate::bot::Rng::new(4);
         let mut undid = 0;
-        for step in 0..600 {
+        for _ in 0..600 {
             if matches!(s.game.phase, Phase::Over { .. }) || s.game.turn > 8 {
                 break;
             }
@@ -728,8 +727,12 @@ mod tests {
         // A refused action is journaled too.
         let out = s.handle(me, r#"{"type":"action","action":{"type":"spawn","cell":{"x":99,"y":99}}}"#);
         assert_eq!(messages(&out, me)[0]["type"], "error");
-        let out = s.handle(me, r#"{"type":"comment","text":" that looks wrong ","context":{"screen":"393x727"}}"#);
-        assert_eq!(messages(&out, me)[0]["type"], "notice");
+        // A line in the chat goes in the log, and in the journal as a note.
+        let out = s.handle(me, r#"{"type":"chat","text":" that looks wrong ","context":{"screen":"393x727"}}"#);
+        let state = &messages(&out, me)[0];
+        assert_eq!(state["type"], "state");
+        let line = state["log"].as_array().unwrap().last().unwrap();
+        assert_eq!((&line["text"], &line["chat"], &line["seat"]), (&json!("that looks wrong"), &json!(true), &json!(0)));
 
         let journal = s.take_journal();
         assert!(s.take_journal().is_empty(), "taken once");
@@ -743,6 +746,10 @@ mod tests {
         assert_eq!(comment["context"]["screen"], "393x727");
         assert_eq!(comment["seat"], 0);
         assert_eq!(comment["game"], comment["seed"]);
+        // The log's last lines, from before the note.
+        let log = comment["log"].as_array().unwrap();
+        assert!(!log.is_empty() && log.len() <= NOTE_LOG_LINES);
+        assert_ne!(log.last().unwrap(), "that looks wrong");
 
         // Replaying the comment's actions from its options gives the same game.
         let options: Options = serde_json::from_value(comment["options"].clone()).unwrap();
@@ -762,8 +769,10 @@ mod tests {
         let (me, _) = s.connect();
         s.handle(me, r#"{"type":"hello","token":"t"}"#);
         s.handle(me, r#"{"type":"claim","seat":0}"#);
-        let out = s.handle(me, r#"{"type":"comment","text":"hi"}"#);
-        assert_eq!(messages(&out, me)[0]["type"], "error");
+        // Chat still works, with or without what the screen showed.
+        let out = s.handle(me, r#"{"type":"chat","text":"hi"}"#);
+        assert_eq!(messages(&out, me)[0]["log"].as_array().unwrap().last().unwrap()["text"], "hi");
+        s.handle(me, r#"{"type":"chat","text":"again","context":{"screen":"1x1"}}"#);
         assert!(s.take_journal().is_empty());
     }
 

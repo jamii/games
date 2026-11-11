@@ -14,8 +14,9 @@
 - **Balance:** `tools/card_value.sh CARD` measures a card by giving it to a player on the same deals; `tools/card_table.py` rebuilds the card table in `BOT.md`. Main finding: balance breaks at the flag (Heavy and Trade dominate with the trained bot); recommendation: fix the flag in place and give the second player 2 points.
 
 ## Bug notes from play
-- The server logs every action for 7 days in `logs/journal-YYYY-MM-DD.jsonl`; the **Note** button adds the player's note with the game's actions and what their screen showed.
-- Notes from the 001 Solo artifact are in its database, collection `notes` (one document each, `status: "open"` until fixed): read them with the ArtifactData tool (`list`, collection `notes`), save one's body to a file and replay it the same way.
+- Players note bugs in the chat box ("Say something, or note a bug…"): every chat line goes in the game's log and is saved as a note (journal record `kind: "comment"`) with the game's options and actions, the log's last lines and what their screen showed. There's no separate Note button.
+- The server logs every action and note for 7 days in `logs/journal-YYYY-MM-DD.jsonl`.
+- Notes from the 001 Solo artifact are in its database, collection `notes` (one document per chat line, `status: "open"` until fixed): read them with the ArtifactData tool (`list`, collection `notes`), save one's body to a file and replay it the same way. Not every chat line is a bug: mark the ones that aren't `status: "not a bug"`.
 - To work through them: `python3 tools/notes.py` lists the server's notes; `python3 tools/notes.py --save N note.json` and `cargo run --release --example replay -- note.json` rebuild the exact position. Fix each, add a regression test, mark artifact notes `status: "fixed"`, and say which notes were fixed.
 
 ## Tests

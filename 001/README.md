@@ -28,10 +28,11 @@ actions (refused ones too, with the reason), undos, new games and seat changes, 
 object a line in `logs/journal-YYYY-MM-DD.jsonl` (UTC dates). `LOG_DIR` and `LOG_DAYS`
 change where and for how long (`LOG_DAYS=0` turns it off).
 
-**Note** (top right; in **☰** on a phone) saves a note in the journal: say what looks
-wrong, and the note keeps the game's options and every action so far, what your screen
-was showing (the phase, the selected unit, the card you'd picked, the screen size) and
-the last lines of the log. The other player doesn't see it. Later:
+To note a bug, say what looks wrong in the chat box under the log (**Say something, or
+note a bug…**; on a phone it's in **Log**). The line goes in the log like any chat, and
+every chat line is also saved in the journal as a note, with the game's options and
+every action so far, what your screen was showing (the phase, the selected unit, the card
+you'd picked, the screen size) and the last lines of the log. Later:
 
 ```bash
 python3 tools/notes.py                     # list the notes, oldest first
@@ -75,13 +76,14 @@ After changing the rules, the cards or the bot, rebuild and republish `web/dist/
 card set also needs a newly trained network). `web/worker.js` sets the bot's search and the
 pause before each of its actions.
 
-**Note** works there too, without a server: the note (with the game's options and moves,
-and what the screen showed) is saved in the artifact's own database, in a `notes`
-collection that only the artifact's owner and editors can read or write. Claude reads it
-with its artifact data tool; a note saved to a file replays with
-`cargo run --release --example replay -- note.json` like a server note. (Seeds are stored
-as text there, since JavaScript numbers would round them.) Anywhere else, eg served by
-`python3 -m http.server`, there's no database and no Note button.
+Notes work there too, without a server: whatever you type in the chat box goes in the log
+and is saved as a note (with the game's options and moves, and what the screen showed)
+in the artifact's own database, in a `notes` collection that only the artifact's owner and
+editors can read or write. Claude reads it with its artifact data tool; a note saved to a
+file replays with `cargo run --release --example replay -- note.json` like a server note.
+(Seeds are stored as text there, since JavaScript numbers would round them.) Anywhere
+else, eg served by `python3 -m http.server` or for a viewer who can't edit the artifact,
+there's no database and the chat only goes in the log.
 
 The board diagram is read from `rules.md` and the cards from `powers.md` (both in this
 folder) at compile time, so after editing either one, rebuild to pick up the changes.
@@ -118,7 +120,8 @@ When a rule check blocks something that a power allows, the error has a **Do it 
 button. **End turn** counts the units next to the flag and offers to score.
 
 With either rules, **Undo** reverts your actions this turn until you draw a card or end
-your turn. There's also a chat box in the log.
+your turn. There's also a chat box in the log, which is also where to note a bug (see
+[Notes and the server log](#notes-and-the-server-log)).
 
 The game lives in memory, so restarting the server ends it.
 
@@ -177,7 +180,9 @@ browsers agree and hands stay hidden.
 - `tests/playthrough.js` uses manual rules, and includes a game where one player is on a
   phone.
 - `tests/bot_seat.js` plays a game against the server's bot (start the server with
-  `BOT_DELAY_MS=50 PORT=3124`), and leaves a note.
+  `BOT_DELAY_MS=50 PORT=3124`), and leaves a note in the chat box. It reads the note back
+  from the server's journal, so start the server from this folder, or give the server and
+  the test the same absolute `LOG_DIR`.
 - `tests/single_player.js` plays the single-player page (serve `web/dist` on port 3125),
   then checks on a phone that the page fits the screen and the bot's moves are animated.
 

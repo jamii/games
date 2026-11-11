@@ -30,21 +30,25 @@ window.SINGLE_PLAYER = true;
     }
   };
 
-  // Notes (the Note button) go in this page's database, where only its owner
-  // and editors can read them (and Claude, for them). Elsewhere (a plain web
-  // server, a viewer who can't edit) there's no Note button.
-  let notesDb = null;
-  (async () => {
-    if (!window.claude || typeof window.claude.use !== 'function') return;
+  // Notes (whatever the player types in the chat) go in this page's database,
+  // where only its owner and editors can read them (and Claude, for them).
+  // Elsewhere (a plain web server, a viewer who can't edit) the chat only goes
+  // in the log.
+  const notesDb = (async () => {
+    if (!window.claude || typeof window.claude.use !== 'function') return null;
+    let db = null;
     try {
-      const db = await window.claude.use('db');
-      if (!db) return;
-      const user = await window.claude.use('user');
-      if (user && !(await user.canEdit())) return;
-      notesDb = db;
+      db = await window.claude.use('db');
+      const user = db && await window.claude.use('user');
+      if (user && !(await user.canEdit())) db = null;
+    } catch (e) {
+      db = null; // no notes here
+    }
+    if (db) {
       window.NOTES_HERE = true;
-      if (typeof render === 'function') render(); // shows the Note button
-    } catch (e) { /* no notes here */ }
+      setTimeout(() => { if (typeof render === 'function') render(); }, 0); // says so in the chat box
+    }
+    return db;
   })();
 
   function tell(msg) {
@@ -52,16 +56,14 @@ window.SINGLE_PLAYER = true;
   }
 
   async function saveNote(note) {
-    if (!notesDb) {
-      tell({ type: 'error', message: "Notes can't be saved here." });
-      return;
-    }
+    const db = await notesDb;
+    if (!db) return;
     // Stored as objects ({seat, action}): some stores refuse arrays in arrays.
     const body = { ...note, actions: (note.actions || []).map(([seat, action]) => ({ seat, action })),
       time: new Date().toISOString(), status: 'open' };
     try {
-      await notesDb.collection('notes').add(body);
-      tell({ type: 'notice', message: 'Note saved with this page.' });
+      await db.collection('notes').add(body);
+      tell({ type: 'notice', message: 'Saved as a note with this page.' });
     } catch (e) {
       tell({ type: 'error', message: `The note wasn't saved: ${(e && (e.message || e.code)) || e}` });
     }
