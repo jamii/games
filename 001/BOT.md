@@ -248,6 +248,7 @@ players may find it slightly favours the second player.
 | Reach | +7.0 ± 8.0 | -0.5 ± 7.8 |  |  | +1 | +0.41 |
 | Vengeance | **+7.0 ± 6.3** | -3.0 ± 8.3 |  |  | +3 | -0.35 |
 | Phoenix | +6.1 ± 6.2 | +6.0 ± 8.4 |  |  | +15 | -0.60 |
+| Click Click | -1.5 ± 7.6 | +5.5 ± 7.4 |  |  | -5 | -0.20 |
 | Trigger | +5.5 ± 7.8 | +3.5 ± 8.1 |  |  | -3 | +0.09 |
 | Dogpile | +1.0 ± 7.8 | +5.5 ± 9.0 |  |  | -7 | -0.28 |
 | Leader | -1.0 ± 7.0 | +5.5 ± 8.6 |  |  | -2 | +0.21 |
@@ -271,7 +272,6 @@ players may find it slightly favours the second player.
 | Vacuum | +0.5 ± 7.1 | -2.0 ± 8.1 |  |  | +12 | -0.55 |
 | Backstab | +0.0 ± 7.8 | -3.0 ± 7.8 |  |  | -5 | -0.52 |
 | Nuke | -1.0 ± 7.5 | -6.5 ± 8.0 |  |  | -8 | -0.09 |
-| Click Click | -1.5 ± 7.6 |  |  |  | -5 | -0.20 |
 | Recycle | -1.5 ± 6.5 |  |  |  | +13 | -1.00 |
 | Stubborn | -1.5 ± 6.4 |  |  |  | +16 | -0.38 |
 | Pacifist | -2.0 ± 7.0 |  |  |  | +15 | +0.38 |
