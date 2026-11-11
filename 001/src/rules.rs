@@ -2068,19 +2068,23 @@ impl Game {
                         continue;
                     }
                     let from = self.unit(t).cell;
-                    let Some((dir, _)) = line_dir(cell, from) else {
+                    let Some((dir, dist)) = line_dir(cell, from) else {
                         return illegal("Push only works on units in a straight line.");
                     };
                     let to = from.step(dir);
                     if !self.can_move(&self.effects(), t, to, user, false) {
                         return illegal("There's no empty space behind the pushed unit.");
                     }
-                    // The last target pushed is the nearest: the user follows into its space.
-                    nearest_space = Some(from);
+                    // The user follows into the nearest target's space. Among equally
+                    // near targets that's the first in the list (the unit that came
+                    // into play first), as before.
+                    if nearest_space.is_none_or(|(d, _)| dist < d) {
+                        nearest_space = Some((dist, from));
+                    }
                     self.do_moves(&[(t, to)], user, ctx)?;
                 }
                 match nearest_space {
-                    Some(space) if self.alive(user) => {
+                    Some((_, space)) if self.alive(user) => {
                         if !self.can_move(&self.effects(), user, space, user, true) {
                             return illegal("The unit can't follow into the space.");
                         }
